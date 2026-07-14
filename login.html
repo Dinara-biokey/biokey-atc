@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>biokey.ATC — Вход</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="db.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a10;
+    color: #e8e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── BACKGROUND GRID ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,92,252,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,92,252,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── GLOW ── */
+  .glow {
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,92,252,0.12) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -60%);
+    pointer-events: none;
+  }
+
+  /* ── CARD ── */
+  .card {
+    position: relative;
+    background: #13131e;
+    border: 1px solid #2a2a3e;
+    border-radius: 24px;
+    padding: 48px 44px 40px;
+    width: 420px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,92,252,0.08);
+    animation: fadeUp 0.5s ease;
+  }
+  @keyframes fadeUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  /* ── LOGO ── */
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 36px;
+    justify-content: center;
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+  }
+  .logo-bio {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+  }
+  .logo-atc {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: #7c5cfc;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #2a2a3e, transparent);
+    margin-bottom: 28px;
+  }
+
+  /* ── ROLE TABS ── */
+  .role-tabs {
+    display: flex;
+    background: #0f0f18;
+    border: 1px solid #2a2a38;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+    margin-bottom: 24px;
+  }
+  .rtab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 7px;
+    cursor: pointer;
+    color: #5a5a7a;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .rtab:hover { color: #a0a0c0; }
+  .rtab.active {
+    background: #7c5cfc;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(124,92,252,0.4);
+  }
+
+  /* ── FIELDS ── */
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b6b88;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 7px;
+  }
+  .field input {
+    width: 100%;
+    background: #0f0f18;
+    border: 1px solid #2a2a3a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: #e8e8f0;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field input:focus {
+    border-color: #7c5cfc;
+    box-shadow: 0 0 0 3px rgba(124,92,252,0.12);
+  }
+  .field input::placeholder { color: #3a3a55; }
+
+  /* ── ERROR ── */
+  .error-msg {
+    display: none;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #f87171;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .error-msg.show { display: block; }
+
+  /* ── SUBMIT ── */
+  .submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #7c5cfc, #9d7dfe);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(124,92,252,0.35);
+    letter-spacing: 0.02em;
+    margin-top: 8px;
+  }
+  .submit-btn:hover   { opacity: 0.9; box-shadow: 0 6px 24px rgba(124,92,252,0.45); }
+  .submit-btn:active  { transform: scale(0.98); }
+  .submit-btn.loading { opacity: 0.6; cursor: default; }
+
+  /* ── FOOTER ── */
+  .card-footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 11px;
+    color: #3a3a55;
+  }
+
+  /* ── VERSION ── */
+  .version {
+    position: fixed;
+    bottom: 20px;
+    font-size: 11px;
+    color: #2a2a42;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<div class="card">
+
+  <!-- LOGO -->
+  <div class="logo-wrap">
+    <!-- biokey icon: ключ + fingerprint -->
+    <svg class="logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- outer ring glow -->
+      <circle cx="24" cy="24" r="23" fill="url(#bg)" opacity="0.6"/>
+      <!-- fingerprint arcs -->
+      <path d="M24 10 C17 10 12 15 12 22 C12 26 13.5 29.5 16 32" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <path d="M24 14 C19 14 15 18 15 23 C15 26.5 16.5 29.5 19 31.5" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.65"/>
+      <path d="M24 18 C21 18 18 20.5 18 23.5 C18 26 19.5 28 22 29" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <!-- key circle -->
+      <circle cx="24" cy="22" r="5" stroke="white" stroke-width="2" fill="none"/>
+      <circle cx="24" cy="22" r="2.5" fill="#7c5cfc"/>
+      <!-- key stem -->
+      <line x1="29" y1="22" x2="38" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <line x1="35" y1="22" x2="35" y2="26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <line x1="38" y1="22" x2="38" y2="25" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#7c5cfc" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#7c5cfc" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+    </svg>
+
+    <div class="logo-text">
+      <div class="logo-bio">biokey<span style="color:#7c5cfc">.</span><span style="color:#a78bfa;font-size:22px">ATC</span></div>
+      <div class="logo-atc">Операторский центр</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ROLE TABS -->
+  <div class="role-tabs">
+    <div class="rtab active" id="tab-op"    onclick="setRole('operator')">👤 Оператор</div>
+    <div class="rtab"        id="tab-admin" onclick="setRole('admin')">⚙️ Администратор</div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-msg" id="error-msg">Неверный логин или пароль</div>
+
+  <!-- FORM -->
+  <form onsubmit="doLogin(event)">
+    <div class="field">
+      <label>Логин</label>
+      <input id="inp-login" type="text" placeholder="ivanov.ivan" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label>Пароль</label>
+      <input id="inp-pass" type="password" placeholder="••••••••" autocomplete="current-password" required />
+    </div>
+    <button class="submit-btn" id="submit-btn" type="submit">Войти</button>
+  </form>
+
+  <div class="card-footer">
+    Нет доступа? Обратитесь к администратору системы.
+  </div>
+</div>
+
+<div class="version">biokey.ATC v1.0</div>
+
+<script>
+let currentRole = 'operator';
+
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('tab-op').classList.toggle('active', role === 'operator');
+  document.getElementById('tab-admin').classList.toggle('active', role === 'admin');
+  document.getElementById('inp-login').placeholder = role === 'admin' ? 'admin' : 'ivanov.ivan';
+  hideError();
+}
+
+function hideError() {
+  document.getElementById('error-msg').classList.remove('show');
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg || 'Неверный логин или пароль';
+  el.classList.add('show');
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  hideError();
+
+  const login = document.getElementById('inp-login').value.trim();
+  const pass  = document.getElementById('inp-pass').value;
+  const btn   = document.getElementById('submit-btn');
+
+  btn.classList.add('loading');
+  btn.textContent = 'Проверка...';
+
+  try {
+    if (currentRole === 'admin') {
+      const ok = await window.db.checkAdminLogin(login, pass);
+      if (ok) {
+        sessionStorage.setItem('atc_session', JSON.stringify({ role: 'admin', name: 'Администратор' }));
+        window.location.href = 'admin.html';
+      } else {
+        showError('Неверный логин или пароль администратора');
+      }
+    } else {
+      const op = await window.db.checkOperatorLogin(login, pass);
+      if (op) {
+        const session = { role: 'operator', name: op.name, ext: op.ext, id: op.id };
+        sessionStorage.setItem('atc_session', JSON.stringify(session));
+        window.location.href = 'softphone.html';
+      } else {
+        // demo mode: if no operators configured, allow any login
+        const allOps = await window.db.loadOperators();
+        const activeOps = allOps.filter(o => o.status === 'active');
+        if (activeOps.length === 0) {
+          sessionStorage.setItem('atc_session', JSON.stringify({ role: 'operator', name: login, ext: login }));
+          window.location.href = 'softphone.html';
+        } else {
+          showError('Оператор не найден или аккаунт отключён');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[login]', err);
+    showError('Ошибка соединения с базой данных');
+  } finally {
+    btn.classList.remove('loading');
+    btn.textContent = 'Войти';
+  }
+}
+
+// auto-focus
+document.getElementById('inp-login').focus();
+
+// check if already logged in
+const sess = sessionStorage.getItem('atc_session');
+if (sess) {
+  try {
+    const s = JSON.parse(sess);
+    if (s.role === 'admin') window.location.href = 'admin.html';
+    else window.location.href = 'softphone.html';
+  } catch(e) {}
+}
+</script>
+</body>
+</html>
