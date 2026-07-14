@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>biokey.ATC — Администратор</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="db.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f0f13;
+    --surface: #1a1a24;
+    --border:  #2a2a38;
+    --border2: #1f1f2e;
+    --text:    #e8e8f0;
+    --muted:   #6b6b88;
+    --accent:  #7c5cfc;
+    --accent2: #a78bfa;
+    --green:   #22c55e;
+    --red:     #ef4444;
+    --yellow:  #f59e0b;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    padding: 22px 20px 16px;
+    border-bottom: 1px solid var(--border2);
+  }
+  .logo-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .logo-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .nav { padding: 12px 0; flex: 1; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover    { color: var(--text); background: #ffffff06; }
+  .nav-item.active   { color: var(--accent2); border-left-color: var(--accent); background: #7c5cfc0a; }
+  .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .sidebar-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border2);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── MAIN ── */
+  .main {
+    flex: 1;
+    padding: 28px 32px;
+    overflow-y: auto;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-header {
+    margin-bottom: 24px;
+  }
+  .page-title { font-size: 20px; font-weight: 700; }
+  .page-sub   { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ── CARDS / PANELS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 18px;
+  }
+
+  /* ── FORM ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .form-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-grid.cols1 { grid-template-columns: 1fr; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+  .field input, .field select {
+    background: #0f0f18;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: #3a3a55; }
+  .field select option { background: #1a1a24; }
+
+  .field.full { grid-column: 1 / -1; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary  { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-danger   { background: #ef444422; border: 1px solid #ef444466; color: var(--red); }
+  .btn-danger:hover { background: #ef444433; }
+  .btn-ghost    { background: #ffffff0a; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { color: var(--text); background: #ffffff12; }
+  .btn-success  { background: #22c55e22; border: 1px solid #22c55e66; color: var(--green); }
+  .btn-success:hover { background: #22c55e33; }
+  .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+
+  /* ── STATS GRID ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-size: 26px; font-weight: 700; }
+  .stat-sub   { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .stat-value.green  { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.red    { color: var(--red); }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border2);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border2); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #ffffff04; }
+  tbody td { padding: 11px 14px; vertical-align: middle; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-green  { background: #22c55e18; color: var(--green); border: 1px solid #22c55e44; }
+  .badge-red    { background: #ef444418; color: var(--red);   border: 1px solid #ef444444; }
+  .badge-yellow { background: #f59e0b18; color: var(--yellow); border: 1px solid #f59e0b44; }
+  .badge-blue   { background: #60a5fa18; color: #60a5fa;      border: 1px solid #60a5fa44; }
+  .badge-purple { background: #a78bfa18; color: var(--accent2); border: 1px solid #a78bfa44; }
+
+  /* ── OPERATOR FORM MODAL ── */
+  #op-modal {
+    display: none;
+    position: fixed; inset: 0;
+    background: #00000099;
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  #op-modal.show { display: flex; }
+
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 28px 24px;
+    width: 420px;
+    animation: fadeUp 0.2s ease;
+  }
+  @keyframes fadeUp {
+    from { transform: translateY(12px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+  .modal-title { font-size: 15px; font-weight: 700; margin-bottom: 20px; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    background: #22c55e;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 300;
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { background: var(--red); }
+
+  /* ── FILTER ROW ── */
+  .filter-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .filter-row input, .filter-row select {
+    background: #0f0f18;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+  }
+  .filter-row input:focus, .filter-row select:focus { border-color: var(--accent); }
+  .filter-row input::placeholder { color: #3a3a55; }
+
+  .period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .op-bar { height: 6px; border-radius: 3px; background: var(--border2); overflow: hidden; margin-top: 4px; min-width: 60px; }
+  .op-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <svg width="30" height="30" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="23" fill="url(#abg)" opacity="0.6"/>
+        <path d="M24 10 C17 10 12 15 12 22 C12 26 13.5 29.5 16 32" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+        <path d="M24 14 C19 14 15 18 15 23 C15 26.5 16.5 29.5 19 31.5" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.7"/>
+        <path d="M24 18 C21 18 18 20.5 18 23.5 C18 26 19.5 28 22 29" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.85"/>
+        <circle cx="24" cy="22" r="5" stroke="white" stroke-width="2" fill="none"/>
+        <circle cx="24" cy="22" r="2.5" fill="#7c5cfc"/>
+        <line x1="29" y1="22" x2="38" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <line x1="35" y1="22" x2="35" y2="26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <line x1="38" y1="22" x2="38" y2="25" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <defs><radialGradient id="abg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#7c5cfc" stop-opacity="0.15"/><stop offset="100%" stop-color="#7c5cfc" stop-opacity="0"/></radialGradient></defs>
+      </svg>
+      <span style="font-size:17px;font-weight:800;color:#fff;letter-spacing:-0.02em">biokey<span style="color:#7c5cfc">.</span><span style="color:#a78bfa;font-size:15px">ATC</span></span>
+    </div>
+    <div class="logo-sub" style="padding-left:2px" id="sidebar-role-label">Панель администратора</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon">📊</span> Дашборд
+    </div>
+    <div class="nav-item admin-only" onclick="showPage('sip')">
+      <span class="nav-icon">🔌</span> SIP-сервер
+    </div>
+    <div class="nav-item" onclick="showPage('operators')">
+      <span class="nav-icon">👥</span> Операторы
+    </div>
+    <div class="nav-item" onclick="showPage('opstat')">
+      <span class="nav-icon">📈</span> Статистика операторов
+    </div>
+    <div class="nav-item" onclick="showPage('cdr')">
+      <span class="nav-icon">📋</span> CDR / История
+    </div>
+    <div class="nav-item admin-only" onclick="showPage('settings')">
+      <span class="nav-icon">⚙️</span> Настройки
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div id="sidebar-user" style="font-size:12px;color:#6b6b88;margin-bottom:10px"></div>
+    <button onclick="adminLogout()" style="background:none;border:1px solid #2a2a3a;border-radius:6px;padding:5px 12px;font-size:11px;color:#5a5a7a;cursor:pointer;width:100%;transition:all .15s" onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef444466'" onmouseout="this.style.color='#5a5a7a';this.style.borderColor='#2a2a3a'">
+      Выйти из системы
+    </button>
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="main">
+
+  <!-- ── DASHBOARD ── -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div class="page-title">Дашборд</div>
+      <div class="page-sub">Общая статистика системы</div>
+    </div>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Всего звонков</div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-sub">за всё время</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Исходящие</div>
+        <div class="stat-value green" id="stat-out">0</div>
+        <div class="stat-sub">↗ завершённые</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Входящие</div>
+        <div class="stat-value" style="color:#60a5fa" id="stat-in">0</div>
+        <div class="stat-sub">↙ принятые</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Пропущенные</div>
+        <div class="stat-value red" id="stat-miss">0</div>
+        <div class="stat-sub">✗ без ответа</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Последние 10 звонков</div>
+      <div class="table-wrap">
+        <table id="dash-table">
+          <thead>
+            <tr>
+              <th>Тип</th>
+              <th>Номер</th>
+              <th>Оператор</th>
+              <th>Дата / Время</th>
+              <th>Длительность</th>
+            </tr>
+          </thead>
+          <tbody id="dash-tbody">
+            <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">Звонков нет</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SIP SETTINGS ── -->
+  <div class="page" id="page-sip">
+    <div class="page-header">
+      <div class="page-title">Настройки SIP-сервера</div>
+      <div class="page-sub">Параметры подключения операторских клиентов</div>
+    </div>
+
+    <!-- Provider Presets -->
+    <div class="card">
+      <div class="card-title">Провайдер</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="applyPreset('custom')"      id="preset-custom"      style="border-color:var(--accent);color:var(--accent2)">⚙️ Произвольный</button>
+        <button class="btn btn-ghost" onclick="applyPreset('beeline-kz')"  id="preset-beeline-kz">🇰🇿 Билайн Казахстан</button>
+        <button class="btn btn-ghost" onclick="applyPreset('beeline-ru')"  id="preset-beeline-ru">🇷🇺 Билайн Россия</button>
+        <button class="btn btn-ghost" onclick="applyPreset('zadarma')"     id="preset-zadarma">🌐 Zadarma</button>
+        <button class="btn btn-ghost" onclick="applyPreset('mango')"       id="preset-mango">🥭 Mango Office</button>
+      </div>
+    </div>
+
+    <!-- Beeline KZ banner -->
+    <div id="beeline-kz-banner" style="display:none;background:#22c55e0d;border:1px solid #22c55e44;border-radius:14px;padding:18px 22px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:10px">🇰🇿 Билайн Казахстан — подключается напрямую (WebSocket встроен)</div>
+      <div style="font-size:13px;color:#60a880;line-height:1.8">
+        Облачная АТС Билайн Казахстан уже поддерживает WebSocket — промежуточный Asterisk не нужен.<br>
+        Каждая компания получает свой субдомен вида <code style="background:#0f0f18;padding:1px 6px;border-radius:4px">COMPANY.ats.beeline.kg</code>
+      </div>
+      <div style="margin-top:14px;padding:14px;background:#0f0f18;border-radius:10px;font-size:13px;line-height:2;color:#a0c0a0">
+        <b style="color:#22c55e">Шаг 1.</b> Войдите в личный кабинет АТС: <code style="background:#1a1a24;padding:1px 6px;border-radius:4px">https://COMPANY.ats.beeline.kg</code><br>
+        <b style="color:#22c55e">Шаг 2.</b> Перейдите в <b>Сотрудники</b> → выберите сотрудника → скопируйте его <b>Логин</b> (часть до @) и установите <b>SIP-пароль</b>.<br>
+        <b style="color:#22c55e">Шаг 3.</b> Заполните поля ниже:<br>
+        <div style="margin-top:8px;padding:10px 14px;background:#1a1a24;border-radius:8px;font-family:monospace;font-size:12px;color:#c8e8c8;line-height:2">
+          WSS-сервер: <b>wss://COMPANY.ats.beeline.kg</b><br>
+          Домен: <b>COMPANY.ats.beeline.kg</b><br>
+          Логин: <b>ivanov.ivan</b> (имя сотрудника из ЛК)<br>
+          Пароль: <b>SIP-пароль</b> из настроек сотрудника
+        </div>
+        <br>
+        <b style="color:#22c55e">Порты (разрешить на роутере/файрволе):</b><br>
+        TCP: 80, 443, 8080, 5060, 5061<br>
+        UDP: 5060, 10000–65535<br>
+        Подсети: <code style="background:#1a1a24;padding:1px 6px;border-radius:4px">91.247.60.32/28</code> и <code style="background:#1a1a24;padding:1px 6px;border-radius:4px">91.247.60.80/29</code>
+      </div>
+    </div>
+
+    <!-- Beeline RU banner (shown only when beeline-ru preset active) -->
+    <div id="beeline-banner" style="display:none;background:#f59e0b0d;border:1px solid #f59e0b44;border-radius:14px;padding:18px 22px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:10px">⚠️ Важно: Билайн требует WebSocket-шлюза</div>
+      <div style="font-size:13px;color:#c0a060;line-height:1.8">
+        Билайн Бизнес работает по стандартному <b>SIP/UDP</b> — браузер к нему напрямую подключиться не может.<br>
+        Нужен промежуточный <b>Asterisk</b>-сервер, который принимает WebSocket от браузера и пересылает звонки в Билайн.
+      </div>
+      <div style="margin-top:14px;padding:14px;background:#0f0f18;border-radius:10px;font-size:12px;line-height:2;color:#a0a060">
+        <b style="color:#f59e0b">Схема:</b><br>
+        Браузер (JsSIP/WSS) → <b style="color:#a78bfa">Asterisk</b> (ваш сервер) → SIP/UDP → <b style="color:#f59e0b">sip.beeline.ru</b>
+        <br><br>
+        <b style="color:#f59e0b">Настройки Asterisk (sip.conf / pjsip.conf):</b>
+        <pre style="margin-top:6px;padding:10px;background:#1a1a24;border-radius:8px;color:#c8c8e8;white-space:pre-wrap;font-family:monospace">; Транк к Билайн (исходящий)
+[beeline-trunk]
+type=peer
+host=sip.beeline.ru
+outboundproxy=msk.sip.beeline.ru
+username=7XXXXXXXXXX        ; ваш номер Билайн
+secret=ВАШ_ПАРОЛЬ
+fromuser=7XXXXXXXXXX
+fromdomain=sip.beeline.ru
+insecure=port,invite
+dtmfmode=rfc2833
+disallow=all
+allow=alaw&amp;ulaw
+directmedia=no
+
+; Регистрация у Билайн
+register => 7XXXXXXXXXX:ВАШ_ПАРОЛЬ@sip.beeline.ru/7XXXXXXXXXX
+
+; Включить WebSocket для браузеров (http.conf)
+; enabled=yes
+; bindaddr=0.0.0.0
+; bindport=8088
+; tlsenable=yes
+; tlsbindaddr=0.0.0.0:8089</pre>
+        <br>
+        <b style="color:#f59e0b">В поле «WSS-сервер» ниже</b> — укажи адрес твоего Asterisk-сервера (не Билайна):<br>
+        <code style="background:#2a2a3a;padding:2px 8px;border-radius:4px">wss://твой-asterisk.ru:8089/ws</code>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Подключение</div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>WebSocket-сервер (WSS) — адрес вашего Asterisk/FreeSWITCH</label>
+          <input id="sip-server" type="text" placeholder="wss://ваш-сервер.ru:8089/ws" />
+        </div>
+        <div class="field">
+          <label>Домен / Realm</label>
+          <input id="sip-domain" type="text" placeholder="sip.example.com" />
+        </div>
+        <div class="field">
+          <label>Транк — логин (SIP User ID)</label>
+          <input id="sip-user" type="text" placeholder="7XXXXXXXXXX" />
+        </div>
+        <div class="field">
+          <label>Транк — пароль</label>
+          <input id="sip-pass" type="password" placeholder="••••••••" />
+        </div>
+        <div class="field">
+          <label>STUN-сервер</label>
+          <input id="sip-stun" type="text" placeholder="stun:stun.l.google.com:19302" />
+        </div>
+        <div class="field">
+          <label>Таймаут регистрации (сек)</label>
+          <input id="sip-reg-timeout" type="number" placeholder="300" value="300" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveSipConfig()">💾 Сохранить и применить</button>
+        <button class="btn btn-ghost" onclick="testSipConfig()">🔍 Проверить соединение</button>
+        <button class="btn btn-danger btn-sm" onclick="clearSipConfig()">Сбросить</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Как получить данные от Билайн</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.9">
+        1. Подключите услугу <b style="color:var(--text)">«SIP-телефония»</b> в личном кабинете Билайн Бизнес или через менеджера.<br>
+        2. Получите от менеджера: <b style="color:var(--text)">Логин (SIP User ID)</b>, <b style="color:var(--text)">Пароль</b>, <b style="color:var(--text)">SIP-сервер</b>.<br>
+        3. Стандартные данные: сервер <code style="background:#0f0f18;padding:2px 6px;border-radius:4px">sip.beeline.ru</code>, домен <code style="background:#0f0f18;padding:2px 6px;border-radius:4px">sip.beeline.ru</code>.<br>
+        4. Настройте Asterisk как шлюз (схема выше) — укажите его WSS-адрес в поле выше.<br>
+        5. В Asterisk каждый оператор — это <b style="color:var(--text)">внутренний SIP-аккаунт</b> (extension), который регистрируется через WebSocket.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPERATORS ── -->
+  <div class="page" id="page-operators">
+    <div class="page-header">
+      <div class="page-title">Операторы</div>
+      <div class="page-sub">Управление учётными записями операторов</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="filter-row" style="margin:0">
+          <input id="op-search" type="text" placeholder="Поиск оператора..." oninput="renderOperators()" style="width:220px" />
+          <select id="op-filter" onchange="renderOperators()">
+            <option value="">Все статусы</option>
+            <option value="active">Активен</option>
+            <option value="inactive">Неактивен</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="openOpModal()">+ Добавить оператора</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Имя</th>
+              <th>Внутр. номер</th>
+              <th>Роль</th>
+              <th>Статус</th>
+              <th>Звонков</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="op-tbody">
+            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Нет операторов</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPERATOR STATS ── -->
+  <div class="page" id="page-opstat">
+    <div class="page-header">
+      <div class="page-title">Статистика операторов</div>
+      <div class="page-sub">Индивидуальные показатели по каждому оператору</div>
+    </div>
+
+    <!-- period filter -->
+    <div class="card" style="padding:14px 20px;margin-bottom:20px">
+      <div class="filter-row" style="margin:0;align-items:center">
+        <span style="font-size:12px;color:var(--muted);margin-right:4px">Период:</span>
+        <button class="btn btn-ghost btn-sm period-btn active" data-period="all"   onclick="setPeriod('all')">Всё время</button>
+        <button class="btn btn-ghost btn-sm period-btn" data-period="today"  onclick="setPeriod('today')">Сегодня</button>
+        <button class="btn btn-ghost btn-sm period-btn" data-period="week"   onclick="setPeriod('week')">7 дней</button>
+        <button class="btn btn-ghost btn-sm period-btn" data-period="month"  onclick="setPeriod('month')">30 дней</button>
+        <input id="opstat-date-from" type="date" onchange="setPeriod('custom')" style="background:#0f0f18;border:1px solid #2a2a3a;border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);margin-left:8px" />
+        <span style="color:var(--muted);font-size:12px">—</span>
+        <input id="opstat-date-to"   type="date" onchange="setPeriod('custom')" style="background:#0f0f18;border:1px solid #2a2a3a;border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text)" />
+        <button class="btn btn-success btn-sm" onclick="exportOpStat()" style="margin-left:auto">⬇ Экспорт CSV</button>
+      </div>
+    </div>
+
+    <!-- summary stats -->
+    <div class="stats-grid" id="opstat-summary" style="grid-template-columns:repeat(5,1fr)">
+      <div class="stat-card"><div class="stat-label">Операторов</div><div class="stat-value" id="oss-ops">0</div></div>
+      <div class="stat-card"><div class="stat-label">Всего звонков</div><div class="stat-value" id="oss-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">Принятых</div><div class="stat-value green" id="oss-answered">0</div></div>
+      <div class="stat-card"><div class="stat-label">Пропущенных</div><div class="stat-value red" id="oss-miss">0</div></div>
+      <div class="stat-card"><div class="stat-label">Общ. время</div><div class="stat-value" style="font-size:18px" id="oss-time">0м</div></div>
+    </div>
+
+    <!-- operator table -->
+    <div class="card" style="padding:0">
+      <div style="padding:16px 20px 0;display:flex;align-items:center;justify-content:space-between">
+        <div class="card-title" style="margin:0">По операторам</div>
+        <input id="opstat-search" type="text" placeholder="Поиск..." oninput="renderOpStat()"
+          style="background:#0f0f18;border:1px solid #2a2a3a;border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);width:180px;outline:none" />
+      </div>
+      <div class="table-wrap" style="margin-top:14px">
+        <table>
+          <thead>
+            <tr>
+              <th>Оператор</th>
+              <th>Номер</th>
+              <th style="text-align:right">Всего</th>
+              <th style="text-align:right">↗ Исх.</th>
+              <th style="text-align:right">↙ Вх.</th>
+              <th style="text-align:right">✗ Пропущ.</th>
+              <th style="text-align:right">% принятых</th>
+              <th style="text-align:right">Общ. время</th>
+              <th style="text-align:right">Среднее</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="opstat-tbody">
+            <tr><td colspan="10" style="color:var(--muted);text-align:center;padding:28px">Нет данных</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- drill-down: individual CDR -->
+    <div id="opstat-detail" style="display:none;margin-top:20px">
+      <div class="card" style="padding:0">
+        <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border2)">
+          <div>
+            <span style="font-size:14px;font-weight:700" id="detail-op-name">Оператор</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:8px" id="detail-op-period"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕ Закрыть</button>
+        </div>
+
+        <!-- mini stats for this operator -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-bottom:1px solid var(--border2)">
+          <div style="padding:14px 18px;border-right:1px solid var(--border2)">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Всего</div>
+            <div style="font-size:22px;font-weight:700" id="d-total">0</div>
+          </div>
+          <div style="padding:14px 18px;border-right:1px solid var(--border2)">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Исходящие</div>
+            <div style="font-size:22px;font-weight:700;color:var(--green)" id="d-out">0</div>
+          </div>
+          <div style="padding:14px 18px;border-right:1px solid var(--border2)">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Входящие</div>
+            <div style="font-size:22px;font-weight:700;color:#60a5fa" id="d-in">0</div>
+          </div>
+          <div style="padding:14px 18px;border-right:1px solid var(--border2)">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Пропущ.</div>
+            <div style="font-size:22px;font-weight:700;color:var(--red)" id="d-miss">0</div>
+          </div>
+          <div style="padding:14px 18px">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Ср. длит.</div>
+            <div style="font-size:22px;font-weight:700" id="d-avg">—</div>
+          </div>
+        </div>
+
+        <!-- call distribution bar -->
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border2)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Распределение звонков</div>
+          <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px" id="d-bar">
+            <div style="flex:1;background:var(--border2);border-radius:4px"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted)" id="d-bar-legend"></div>
+        </div>
+
+        <!-- CDR table for this operator -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Тип</th>
+                <th>Номер</th>
+                <th>Дата</th>
+                <th>Время</th>
+                <th>Длительность</th>
+              </tr>
+            </thead>
+            <tbody id="detail-tbody"></tbody>
+          </table>
+        </div>
+        <div id="detail-footer" style="padding:10px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border2)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CDR ── -->
+  <div class="page" id="page-cdr">
+    <div class="page-header">
+      <div class="page-title">CDR — История звонков</div>
+      <div class="page-sub">Детальный журнал всех вызовов</div>
+    </div>
+
+    <div class="card" style="padding:16px 20px">
+      <div class="filter-row">
+        <input id="cdr-search" type="text" placeholder="Номер телефона..." oninput="renderCDR()" style="width:200px" />
+        <select id="cdr-type" onchange="renderCDR()">
+          <option value="">Все типы</option>
+          <option value="out">Исходящие ↗</option>
+          <option value="in">Входящие ↙</option>
+          <option value="miss">Пропущенные ✗</option>
+        </select>
+        <select id="cdr-op" onchange="renderCDR()">
+          <option value="">Все операторы</option>
+        </select>
+        <input id="cdr-date" type="date" onchange="renderCDR()" />
+        <button class="btn btn-ghost btn-sm" onclick="clearCDRFilters()">Сбросить</button>
+        <button class="btn btn-success btn-sm" onclick="exportCDR()">⬇ Экспорт CSV</button>
+        <button class="btn btn-danger btn-sm" onclick="clearCDR()">🗑 Очистить</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Тип</th>
+              <th>Номер</th>
+              <th>Оператор</th>
+              <th>Дата</th>
+              <th>Время</th>
+              <th>Длительность</th>
+            </tr>
+          </thead>
+          <tbody id="cdr-tbody">
+            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Нет данных</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="cdr-footer" style="padding:12px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border2)"></div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <div class="page-title">Настройки системы</div>
+      <div class="page-sub">Управление доступом и учётными данными</div>
+    </div>
+
+    <!-- Change admin password -->
+    <div class="card" style="max-width:480px">
+      <div class="card-title">Смена пароля администратора</div>
+      <div class="form-grid cols1">
+        <div class="field">
+          <label>Текущий пароль</label>
+          <input id="set-cur-pass" type="password" placeholder="••••••••" />
+        </div>
+        <div class="field">
+          <label>Новый пароль</label>
+          <input id="set-new-pass" type="password" placeholder="••••••••" />
+        </div>
+        <div class="field">
+          <label>Повторите новый пароль</label>
+          <input id="set-confirm-pass" type="password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="changeAdminPassword()">Сменить пароль</button>
+      </div>
+    </div>
+
+    <!-- РОП accounts -->
+    <div class="card" style="max-width:480px">
+      <div class="card-title">Учётные записи РОП</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">
+        РОП имеет доступ к операторам, статистике и CDR.<br>
+        Не видит SIP-настройки и настройки системы.
+      </div>
+      <button class="btn btn-primary" onclick="openOpModal(); document.getElementById('m-role').value='rop'">+ Добавить РОП</button>
+      <div id="rop-list" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+</main><!-- /main -->
+
+<!-- ═══════════════ OPERATOR MODAL ═══════════════ -->
+<div id="op-modal">
+  <div class="modal-card">
+    <div class="modal-title" id="modal-title">Новый оператор</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Имя оператора</label>
+        <input id="m-name" type="text" placeholder="Иван Петров" />
+      </div>
+      <div class="field">
+        <label>Внутренний номер (SIP ext)</label>
+        <input id="m-ext" type="text" placeholder="1001" />
+      </div>
+      <div class="field">
+        <label>SIP-пароль</label>
+        <input id="m-pass" type="password" placeholder="••••••" />
+      </div>
+      <div class="field">
+        <label>Роль</label>
+        <select id="m-role">
+          <option value="operator">Оператор</option>
+          <option value="senior">Старший оператор</option>
+          <option value="rop">РОП</option>
+          <option value="admin">Администратор</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Статус</label>
+        <select id="m-status">
+          <option value="active">Активен</option>
+          <option value="inactive">Неактивен</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveOperator()">Сохранить</button>
+      <button class="btn btn-ghost" onclick="closeOpModal()">Отмена</button>
+      <button class="btn btn-danger btn-sm" id="modal-delete-btn" onclick="deleteOperator()" style="display:none;margin-left:auto">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active');
+  });
+  if (id === 'dashboard') refreshDashboard();
+  if (id === 'operators')  renderOperators();
+  if (id === 'opstat')     { renderOpStat(); closeDetail(); }
+  if (id === 'cdr')        { renderCDR(); populateCDROpFilter(); }
+  if (id === 'settings')   renderRopList();
+}
+
+// ═══════════════════════════════════════════════
+//  PROVIDER PRESETS
+// ═══════════════════════════════════════════════
+const PRESETS = {
+  custom: {
+    server: '', domain: '', user: '',
+    stun: 'stun:stun.l.google.com:19302',
+    serverPlaceholder: 'wss://ваш-сервер.ru:8089/ws',
+    hint: false,
+  },
+  'beeline-kz': {
+    server: '',   // пользователь вводит свой company.ats.beeline.kg
+    domain: '',
+    user: '',
+    stun: 'stun:stun.l.google.com:19302',
+    serverPlaceholder: 'wss://COMPANY.ats.beeline.kg',
+    domainPlaceholder: 'COMPANY.ats.beeline.kg',
+    hint: 'beeline-kz',
+  },
+  'beeline-ru': {
+    server: '',   // нужен свой Asterisk WSS
+    domain: 'sip.beeline.ru',
+    user: '',
+    stun: 'stun:stun.l.google.com:19302',
+    serverPlaceholder: 'wss://ваш-asterisk.ru:8089/ws',
+    hint: 'beeline-ru',
+  },
+  zadarma: {
+    server: 'wss://sip.zadarma.com:443/ws',
+    domain: 'sip.zadarma.com',
+    user: '',
+    stun: 'stun:stun.l.google.com:19302',
+    serverPlaceholder: 'wss://sip.zadarma.com:443/ws',
+    hint: false,
+  },
+  mango: {
+    server: '',
+    domain: 'sip.mango-office.ru',
+    user: '',
+    stun: 'stun:stun.l.google.com:19302',
+    serverPlaceholder: 'wss://ваш-сервер.ru:8089/ws',
+    hint: false,
+  },
+};
+
+let activePreset = 'custom';
+
+function applyPreset(key) {
+  activePreset = key;
+  const p = PRESETS[key];
+  if (!p) return;
+
+  // highlight active button
+  document.querySelectorAll('[id^="preset-"]').forEach(b => {
+    b.style.borderColor = '';
+    b.style.color = '';
+  });
+  const btn = document.getElementById('preset-' + key);
+  if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent2)'; }
+
+  // fill fields (only if non-empty)
+  if (p.server) document.getElementById('sip-server').value = p.server;
+  if (p.domain) document.getElementById('sip-domain').value = p.domain;
+  if (p.stun)   document.getElementById('sip-stun').value   = p.stun;
+
+  // update placeholders
+  const serverInput = document.getElementById('sip-server');
+  const domainInput = document.getElementById('sip-domain');
+  serverInput.placeholder = p.serverPlaceholder || 'wss://ваш-сервер.ru:8089/ws';
+  if (p.domainPlaceholder) domainInput.placeholder = p.domainPlaceholder;
+  else domainInput.placeholder = 'sip.example.com';
+
+  // show/hide banners
+  document.getElementById('beeline-kz-banner').style.display = p.hint === 'beeline-kz' ? 'block' : 'none';
+  document.getElementById('beeline-banner').style.display    = p.hint === 'beeline-ru'  ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════════
+//  SIP CONFIG
+// ═══════════════════════════════════════════════
+async function loadSipForm() {
+  const row = await window.db.loadConfig();
+  const cfg = window.db.configToLegacy(row);
+  if (!cfg) return;
+  document.getElementById('sip-server').value = cfg.server || '';
+  document.getElementById('sip-domain').value = cfg.domain || '';
+  document.getElementById('sip-user').value   = cfg.user   || '';
+  document.getElementById('sip-pass').value   = cfg.pass   || '';
+  document.getElementById('sip-stun').value   = cfg.stun   || 'stun:stun.l.google.com:19302';
+  document.getElementById('sip-reg-timeout').value = cfg.regTimeout || 300;
+  const preset = cfg.preset === 'beeline' ? 'beeline-ru' : cfg.preset;
+  if (preset) setTimeout(() => applyPreset(preset), 0);
+}
+
+async function saveSipConfig() {
+  const cfg = {
+    preset:     activePreset,
+    server:     document.getElementById('sip-server').value.trim(),
+    domain:     document.getElementById('sip-domain').value.trim(),
+    user:       document.getElementById('sip-user').value.trim(),
+    pass:       document.getElementById('sip-pass').value,
+    stun:       document.getElementById('sip-stun').value.trim() || 'stun:stun.l.google.com:19302',
+    regTimeout: parseInt(document.getElementById('sip-reg-timeout').value) || 300,
+  };
+  if (!cfg.server || !cfg.domain) { toast('Заполните WSS и домен', true); return; }
+  await window.db.saveConfig(cfg);
+  toast('Настройки сохранены ✓');
+}
+
+async function testSipConfig() {
+  const row = await window.db.loadConfig();
+  if (!row) { toast('Сначала сохраните настройки', true); return; }
+  toast('Параметры будут проверены при открытии softphone.html');
+}
+
+async function clearSipConfig() {
+  if (!confirm('Сбросить настройки SIP?')) return;
+  await window.db.saveConfig({ server:'', domain:'', user:'', pass:'', stun:'stun:stun.l.google.com:19302', regTimeout:300, preset:'custom' });
+  document.getElementById('sip-server').value = '';
+  document.getElementById('sip-domain').value = '';
+  document.getElementById('sip-user').value   = '';
+  document.getElementById('sip-pass').value   = '';
+  toast('Настройки сброшены');
+}
+
+// ═══════════════════════════════════════════════
+//  OPERATORS
+// ═══════════════════════════════════════════════
+let editingOpId = null;
+let _ops = []; // in-memory cache
+
+async function renderOperators() {
+  _ops = await window.db.loadOperators();
+  const cdr    = await window.db.loadCDR({ limit: 1000 });
+  const search = document.getElementById('op-search').value.toLowerCase();
+  const filter = document.getElementById('op-filter').value;
+  const tbody  = document.getElementById('op-tbody');
+
+  let filtered = _ops.filter(op => {
+    const matchSearch = !search || op.name.toLowerCase().includes(search) || (op.ext||'').includes(search);
+    const matchStatus = !filter || op.status === filter;
+    return matchSearch && matchStatus;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">
+      ${_ops.length ? 'Ничего не найдено' : 'Нет операторов — добавьте первого'}</td></tr>`;
+    return;
+  }
+
+  const roleLabels = { operator: 'Оператор', senior: 'Старший', admin: 'Администратор' };
+
+  tbody.innerHTML = filtered.map(op => {
+    const callCount = cdr.filter(c => c.op === op.name || c.op === op.ext).length;
+    const statusBadge = op.status === 'active'
+      ? '<span class="badge badge-green">Активен</span>'
+      : '<span class="badge badge-yellow">Неактивен</span>';
+    return `<tr>
+      <td><b>${esc(op.name)}</b></td>
+      <td><code style="background:#0f0f18;padding:2px 8px;border-radius:4px;font-size:12px">${esc(op.ext||'—')}</code></td>
+      <td><span class="badge badge-purple">${roleLabels[op.role]||op.role}</span></td>
+      <td>${statusBadge}</td>
+      <td style="color:var(--muted)">${callCount}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="openOpModal('${op.id}')">✏️ Изменить</button>
+        <button class="btn btn-ghost btn-sm" onclick="loginAsOperator('${op.id}')" title="Войти как оператор">🔑 Войти</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function openOpModal(id) {
+  editingOpId = id || null;
+  const modal = document.getElementById('op-modal');
+  const deleteBtn = document.getElementById('modal-delete-btn');
+
+  if (id) {
+    const ops = _ops.length ? _ops : await window.db.loadOperators();
+    const op  = ops.find(o => o.id === id);
+    if (!op) return;
+    document.getElementById('modal-title').textContent = 'Изменить оператора';
+    document.getElementById('m-name').value   = op.name   || '';
+    document.getElementById('m-ext').value    = op.ext    || '';
+    document.getElementById('m-pass').value   = op.pass   || '';
+    document.getElementById('m-role').value   = op.role   || 'operator';
+    document.getElementById('m-status').value = op.status || 'active';
+    deleteBtn.style.display = 'inline-block';
+  } else {
+    document.getElementById('modal-title').textContent = 'Новый оператор';
+    document.getElementById('m-name').value   = '';
+    document.getElementById('m-ext').value    = '';
+    document.getElementById('m-pass').value   = '';
+    document.getElementById('m-role').value   = 'operator';
+    document.getElementById('m-status').value = 'active';
+    deleteBtn.style.display = 'none';
+  }
+
+  modal.classList.add('show');
+  setTimeout(() => document.getElementById('m-name').focus(), 100);
+}
+
+function closeOpModal() {
+  document.getElementById('op-modal').classList.remove('show');
+  editingOpId = null;
+}
+
+async function saveOperator() {
+  const name   = document.getElementById('m-name').value.trim();
+  const ext    = document.getElementById('m-ext').value.trim();
+  const pass   = document.getElementById('m-pass').value;
+  const role   = document.getElementById('m-role').value;
+  const status = document.getElementById('m-status').value;
+
+  if (!name) { toast('Введите имя оператора', true); return; }
+
+  const op = { name, ext, pass, role, status };
+  if (editingOpId) op.id = editingOpId;
+
+  await window.db.saveOperator(op);
+  closeOpModal();
+  await renderOperators();
+  toast(editingOpId ? 'Оператор обновлён ✓' : 'Оператор добавлен ✓');
+}
+
+async function deleteOperator() {
+  if (!editingOpId || !confirm('Удалить оператора?')) return;
+  await window.db.deleteOperator(editingOpId);
+  closeOpModal();
+  await renderOperators();
+  toast('Оператор удалён');
+}
+
+async function loginAsOperator(id) {
+  const ops = _ops.length ? _ops : await window.db.loadOperators();
+  const op = ops.find(o => o.id === id);
+  if (!op) return;
+  sessionStorage.setItem('atc_session', JSON.stringify({ role: 'operator', name: op.name, ext: op.ext, id: op.id }));
+  window.location.href = 'softphone.html';
+}
+
+// ═══════════════════════════════════════════════
+//  CDR
+// ═══════════════════════════════════════════════
+async function populateCDROpFilter() {
+  const ops = await window.db.loadOperators();
+  const sel = document.getElementById('cdr-op');
+  sel.innerHTML = '<option value="">Все операторы</option>' +
+    ops.map(o => `<option value="${esc(o.name)}">${esc(o.name)}</option>`).join('');
+}
+
+async function renderCDR() {
+  const search = document.getElementById('cdr-search').value.trim();
+  const type   = document.getElementById('cdr-type').value;
+  const op     = document.getElementById('cdr-op').value;
+  const date   = document.getElementById('cdr-date').value;
+
+  const cdr = await window.db.loadCDR({
+    num:      search   || undefined,
+    type:     type     || undefined,
+    op:       op       || undefined,
+    dateFrom: date     || undefined,
+    dateTo:   date     || undefined,
+    limit:    200,
+  });
+
+  const tbody  = document.getElementById('cdr-tbody');
+  const footer = document.getElementById('cdr-footer');
+
+  if (!cdr.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Нет записей</td></tr>`;
+    footer.textContent = '';
+    return;
+  }
+
+  const typeMeta = {
+    out:  { label: '↗ Исходящий', cls: 'badge-green' },
+    in:   { label: '↙ Входящий',  cls: 'badge-blue' },
+    miss: { label: '✗ Пропущенный', cls: 'badge-red' },
+  };
+
+  tbody.innerHTML = cdr.map(c => {
+    const dt   = new Date(c.time);
+    const d    = dt.toLocaleDateString('ru-RU');
+    const t    = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const meta = typeMeta[c.type] || { label: c.type, cls: 'badge-purple' };
+    const dur  = c.dur ? formatDur(c.dur) : '—';
+    return `<tr>
+      <td><span class="badge ${meta.cls}">${meta.label}</span></td>
+      <td><b>${esc(c.num||'—')}</b></td>
+      <td style="color:var(--muted)">${esc(c.op||'—')}</td>
+      <td style="color:var(--muted)">${d}</td>
+      <td style="color:var(--muted)">${t}</td>
+      <td style="font-variant-numeric:tabular-nums">${dur}</td>
+    </tr>`;
+  }).join('');
+
+  footer.textContent = `Показано: ${cdr.length} записей`;
+}
+
+function clearCDRFilters() {
+  document.getElementById('cdr-search').value = '';
+  document.getElementById('cdr-type').value   = '';
+  document.getElementById('cdr-op').value     = '';
+  document.getElementById('cdr-date').value   = '';
+  renderCDR();
+}
+
+async function exportCDR() {
+  const cdr = await window.db.loadCDR({ limit: 10000 });
+  if (!cdr.length) { toast('Нет данных для экспорта', true); return; }
+  const rows = [['Тип', 'Номер', 'Оператор', 'Дата', 'Время', 'Длительность (сек)']];
+  cdr.forEach(c => {
+    const dt = new Date(c.time);
+    rows.push([c.type, c.num, c.op||'', dt.toLocaleDateString('ru-RU'), dt.toLocaleTimeString('ru-RU'), c.dur||0]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `cdr_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Экспорт завершён ✓');
+}
+
+async function clearCDR() {
+  if (!confirm('Очистить всю историю звонков? Это действие нельзя отменить.')) return;
+  await window.db.clearCDR();
+  await renderCDR();
+  await refreshDashboard();
+  toast('История очищена');
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+async function refreshDashboard() {
+  const cdr    = await window.db.loadCDR({ limit: 10000 });
+  const counts = cdr.reduce((acc, c) => { acc[c.type] = (acc[c.type]||0)+1; return acc; }, {});
+
+  document.getElementById('stat-total').textContent = cdr.length;
+  document.getElementById('stat-out').textContent   = counts.out  || 0;
+  document.getElementById('stat-in').textContent    = counts.in   || 0;
+  document.getElementById('stat-miss').textContent  = counts.miss || 0;
+
+  const tbody  = document.getElementById('dash-tbody');
+  const recent = cdr.slice(0, 10);
+
+  if (!recent.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">Звонков нет</td></tr>`;
+    return;
+  }
+
+  const typeMeta = {
+    out:  { label: '↗ Исходящий', cls: 'badge-green' },
+    in:   { label: '↙ Входящий',  cls: 'badge-blue' },
+    miss: { label: '✗ Пропущенный', cls: 'badge-red' },
+  };
+
+  tbody.innerHTML = recent.map(c => {
+    const dt   = new Date(c.time);
+    const meta = typeMeta[c.type] || { label: c.type, cls: 'badge-purple' };
+    return `<tr>
+      <td><span class="badge ${meta.cls}">${meta.label}</span></td>
+      <td><b>${esc(c.num||'—')}</b></td>
+      <td style="color:var(--muted)">${esc(c.op||'—')}</td>
+      <td style="color:var(--muted)">${dt.toLocaleString('ru-RU')}</td>
+      <td>${c.dur ? formatDur(c.dur) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function formatDur(s) {
+  if (!s) return '0с';
+  return s < 60 ? `${s}с` : `${Math.floor(s/60)}м ${s%60}с`;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isError ? ' error' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3000);
+}
+
+// close modal on backdrop click
+document.getElementById('op-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('op-modal')) closeOpModal();
+});
+
+// keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeOpModal();
+});
+
+// ═══════════════════════════════════════════════
+//  OPERATOR STATISTICS
+// ═══════════════════════════════════════════════
+let currentPeriod = 'all';
+let detailOpName  = null;
+let _cdrCache     = []; // CDR cached for current period
+
+function setPeriod(period) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+  renderOpStat();
+}
+
+function getDateRange() {
+  const now = new Date();
+  if (currentPeriod === 'today') {
+    const s = new Date(now); s.setHours(0,0,0,0);
+    return { from: s, to: now };
+  }
+  if (currentPeriod === 'week') {
+    const s = new Date(now); s.setDate(s.getDate()-6); s.setHours(0,0,0,0);
+    return { from: s, to: now };
+  }
+  if (currentPeriod === 'month') {
+    const s = new Date(now); s.setDate(s.getDate()-29); s.setHours(0,0,0,0);
+    return { from: s, to: now };
+  }
+  if (currentPeriod === 'custom') {
+    const f = document.getElementById('opstat-date-from').value;
+    const t = document.getElementById('opstat-date-to').value;
+    const from = f ? new Date(f + 'T00:00:00') : null;
+    const to   = t ? new Date(t + 'T23:59:59') : null;
+    return { from, to };
+  }
+  return { from: null, to: null };
+}
+
+function filterCDRByPeriod(cdr) {
+  const { from, to } = getDateRange();
+  if (!from && !to) return cdr;
+  return cdr.filter(c => {
+    const d = new Date(c.time);
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    return true;
+  });
+}
+
+function calcOpStats(cdrSlice) {
+  // returns { total, out, in, miss, totalSec, answered }
+  const s = { total: cdrSlice.length, out: 0, in: 0, miss: 0, totalSec: 0 };
+  cdrSlice.forEach(c => {
+    s[c.type] = (s[c.type]||0) + 1;
+    if (c.type !== 'miss') s.totalSec += (c.dur || 0);
+  });
+  s.answered = (s.out||0) + (s.in||0);
+  return s;
+}
+
+async function renderOpStat() {
+  const ops = await window.db.loadOperators();
+  const { from, to } = getDateRange();
+  const opts = { limit: 10000 };
+  if (from) opts.dateFrom = from.toISOString().slice(0,10);
+  if (to)   opts.dateTo   = to.toISOString().slice(0,10);
+  _cdrCache = await window.db.loadCDR(opts);
+  const cdrAll = _cdrCache;
+  const search = (document.getElementById('opstat-search')?.value||'').toLowerCase();
+
+  // group CDR by operator name
+  const byOp = {};
+  cdrAll.forEach(c => {
+    const key = c.op || '(без оператора)';
+    if (!byOp[key]) byOp[key] = [];
+    byOp[key].push(c);
+  });
+
+  // build rows for all known operators + any unknown from CDR
+  const opNames = new Set([...ops.map(o => o.name), ...Object.keys(byOp)]);
+  let rows = [];
+  opNames.forEach(name => {
+    const op     = ops.find(o => o.name === name);
+    const calls  = byOp[name] || [];
+    const s      = calcOpStats(calls);
+    const pct    = s.total ? Math.round(s.answered / s.total * 100) : 0;
+    rows.push({ name, ext: op?.ext||'—', role: op?.role||'', status: op?.status||'', ...s, pct });
+  });
+
+  // filter by search
+  if (search) rows = rows.filter(r => r.name.toLowerCase().includes(search) || (r.ext||'').includes(search));
+
+  // sort by total desc
+  rows.sort((a, b) => b.total - a.total);
+
+  // summary
+  const allTotal    = rows.reduce((a, r) => a + r.total, 0);
+  const allAnswered = rows.reduce((a, r) => a + r.answered, 0);
+  const allMiss     = rows.reduce((a, r) => a + r.miss, 0);
+  const allSec      = rows.reduce((a, r) => a + r.totalSec, 0);
+  document.getElementById('oss-ops').textContent      = rows.length;
+  document.getElementById('oss-total').textContent    = allTotal;
+  document.getElementById('oss-answered').textContent = allAnswered;
+  document.getElementById('oss-miss').textContent     = allMiss;
+  document.getElementById('oss-time').textContent     = formatDurLong(allSec);
+
+  const maxTotal = rows[0]?.total || 1;
+  const roleLabels = { operator: 'Оператор', senior: 'Старший', admin: 'Администратор' };
+
+  const tbody = document.getElementById('opstat-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:28px">Нет данных за выбранный период</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const barPct = Math.round(r.total / maxTotal * 100);
+    const pctColor = r.pct >= 80 ? 'var(--green)' : r.pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const statusDot = r.status === 'active'
+      ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:5px;vertical-align:middle"></span>`
+      : r.status === 'inactive'
+      ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:5px;vertical-align:middle"></span>`
+      : '';
+    return `<tr>
+      <td>
+        ${statusDot}<b>${esc(r.name)}</b>
+        ${r.role ? `<span style="font-size:10px;color:var(--muted);margin-left:5px">${roleLabels[r.role]||r.role}</span>` : ''}
+        <div class="op-bar"><div class="op-bar-fill" style="width:${barPct}%"></div></div>
+      </td>
+      <td><code style="background:#0f0f18;padding:2px 8px;border-radius:4px;font-size:12px">${esc(r.ext)}</code></td>
+      <td style="text-align:right;font-weight:600">${r.total}</td>
+      <td style="text-align:right;color:var(--green)">${r.out||0}</td>
+      <td style="text-align:right;color:#60a5fa">${r.in||0}</td>
+      <td style="text-align:right;color:var(--red)">${r.miss||0}</td>
+      <td style="text-align:right">
+        <span style="color:${pctColor};font-weight:600">${r.pct}%</span>
+      </td>
+      <td style="text-align:right;color:var(--muted)">${formatDurLong(r.totalSec)}</td>
+      <td style="text-align:right;color:var(--muted)">${r.answered ? formatDur(Math.round(r.totalSec/r.answered)) : '—'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openDetail('${esc(r.name)}')">Детали →</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function openDetail(opName) {
+  detailOpName = opName;
+  let cdrAll = _cdrCache;
+  if (!cdrAll.length) {
+    const { from, to } = getDateRange();
+    const opts = { limit: 10000 };
+    if (from) opts.dateFrom = from.toISOString().slice(0,10);
+    if (to)   opts.dateTo   = to.toISOString().slice(0,10);
+    cdrAll = await window.db.loadCDR(opts);
+  }
+  const calls    = cdrAll.filter(c => (c.op||'(без оператора)') === opName);
+  const s        = calcOpStats(calls);
+  const avgSec   = s.answered ? Math.round(s.totalSec / s.answered) : 0;
+
+  document.getElementById('detail-op-name').textContent = opName;
+  const { from, to } = getDateRange();
+  const periodStr = from ? `${from.toLocaleDateString('ru-RU')} — ${to ? to.toLocaleDateString('ru-RU') : '…'}` : 'Всё время';
+  document.getElementById('detail-op-period').textContent = periodStr;
+
+  document.getElementById('d-total').textContent = s.total;
+  document.getElementById('d-out').textContent   = s.out||0;
+  document.getElementById('d-in').textContent    = s.in||0;
+  document.getElementById('d-miss').textContent  = s.miss||0;
+  document.getElementById('d-avg').textContent   = avgSec ? formatDur(avgSec) : '—';
+
+  // distribution bar
+  const bar = document.getElementById('d-bar');
+  const legend = document.getElementById('d-bar-legend');
+  if (s.total) {
+    const pOut  = Math.round((s.out||0)  / s.total * 100);
+    const pIn   = Math.round((s.in||0)   / s.total * 100);
+    const pMiss = Math.max(0, 100 - pOut - pIn);
+    bar.innerHTML = `
+      <div style="flex:${pOut};background:var(--green);min-width:${pOut?2:0}px"></div>
+      <div style="flex:${pIn};background:#60a5fa;min-width:${pIn?2:0}px"></div>
+      <div style="flex:${pMiss};background:var(--red);min-width:${pMiss?2:0}px"></div>`;
+    legend.innerHTML = `
+      <span style="color:var(--green)">● Исходящие ${pOut}%</span>
+      <span style="color:#60a5fa">● Входящие ${pIn}%</span>
+      <span style="color:var(--red)">● Пропущенные ${pMiss}%</span>`;
+  } else {
+    bar.innerHTML = `<div style="flex:1;background:var(--border2)"></div>`;
+    legend.innerHTML = '';
+  }
+
+  // CDR table
+  const typeMeta = {
+    out:  { label: '↗ Исх.',  cls: 'badge-green' },
+    in:   { label: '↙ Вх.',   cls: 'badge-blue' },
+    miss: { label: '✗ Пропущ.', cls: 'badge-red' },
+  };
+  const tbody = document.getElementById('detail-tbody');
+  if (!calls.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">Нет звонков</td></tr>`;
+  } else {
+    tbody.innerHTML = calls.slice(0,100).map(c => {
+      const dt = new Date(c.time);
+      const meta = typeMeta[c.type]||{ label: c.type, cls: 'badge-purple' };
+      return `<tr>
+        <td><span class="badge ${meta.cls}">${meta.label}</span></td>
+        <td><b>${esc(c.num||'—')}</b></td>
+        <td style="color:var(--muted)">${dt.toLocaleDateString('ru-RU')}</td>
+        <td style="color:var(--muted)">${dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+        <td>${c.dur ? formatDur(c.dur) : '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('detail-footer').textContent =
+    calls.length > 100 ? `Показано 100 из ${calls.length} записей` : `Всего записей: ${calls.length}`;
+
+  const el = document.getElementById('opstat-detail');
+  el.style.display = 'block';
+  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+
+function closeDetail() {
+  document.getElementById('opstat-detail').style.display = 'none';
+  detailOpName = null;
+}
+
+async function exportOpStat() {
+  const ops = await window.db.loadOperators();
+  const { from, to } = getDateRange();
+  const opts = { limit: 10000 };
+  if (from) opts.dateFrom = from.toISOString().slice(0,10);
+  if (to)   opts.dateTo   = to.toISOString().slice(0,10);
+  const cdrAll = await window.db.loadCDR(opts);
+  const byOp   = {};
+  cdrAll.forEach(c => {
+    const k = c.op || '(без оператора)';
+    if (!byOp[k]) byOp[k] = [];
+    byOp[k].push(c);
+  });
+  const opNames = new Set([...ops.map(o => o.name), ...Object.keys(byOp)]);
+  const rows = [['Оператор', 'Номер', 'Всего', 'Исходящие', 'Входящие', 'Пропущенные', '% принятых', 'Общ. время (сек)', 'Ср. длит. (сек)']];
+  opNames.forEach(name => {
+    const op = ops.find(o => o.name === name);
+    const s  = calcOpStats(byOp[name]||[]);
+    const pct = s.total ? Math.round(s.answered/s.total*100) : 0;
+    const avg = s.answered ? Math.round(s.totalSec/s.answered) : 0;
+    rows.push([name, op?.ext||'', s.total, s.out||0, s.in||0, s.miss||0, pct+'%', s.totalSec, avg]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `opstat_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('Экспорт завершён ✓');
+}
+
+function formatDurLong(s) {
+  if (!s) return '0с';
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const sec = s%60;
+  if (h) return `${h}ч ${m}м`;
+  if (m) return `${m}м ${sec}с`;
+  return `${sec}с`;
+}
+
+// ═══════════════════════════════════════════════
+//  AUTH GUARD + ROLE
+// ═══════════════════════════════════════════════
+let currentUserRole = 'admin';
+
+function checkAdminAuth() {
+  const sess = sessionStorage.getItem('atc_session');
+  if (!sess) { window.location.href = 'login.html'; return; }
+  try {
+    const s = JSON.parse(sess);
+    if (s.role !== 'admin' && s.role !== 'rop') {
+      window.location.href = 'login.html';
+      return;
+    }
+    currentUserRole = s.role;
+
+    // Update sidebar label & user info
+    if (s.role === 'rop') {
+      document.getElementById('sidebar-role-label').textContent = 'Панель РОП';
+      document.getElementById('sidebar-user').textContent = '👤 ' + (s.name || 'РОП');
+      // Hide admin-only nav items
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    } else {
+      document.getElementById('sidebar-user').textContent = '🔑 Администратор';
+    }
+  } catch(e) { window.location.href = 'login.html'; }
+}
+
+function adminLogout() {
+  sessionStorage.removeItem('atc_session');
+  window.location.href = 'login.html';
+}
+
+// ═══════════════════════════════════════════════
+//  SETTINGS — смена пароля
+// ═══════════════════════════════════════════════
+async function changeAdminPassword() {
+  const cur     = document.getElementById('set-cur-pass').value;
+  const newPass = document.getElementById('set-new-pass').value;
+  const confirm = document.getElementById('set-confirm-pass').value;
+
+  if (!cur || !newPass) { toast('Заполните все поля', true); return; }
+  if (newPass !== confirm) { toast('Пароли не совпадают', true); return; }
+  if (newPass.length < 4) { toast('Пароль слишком короткий', true); return; }
+
+  // Verify current password
+  const sess = JSON.parse(sessionStorage.getItem('atc_session') || '{}');
+  const ok = await window.db.checkAdminLogin(sess.login || 'admin', cur);
+  if (!ok) { toast('Неверный текущий пароль', true); return; }
+
+  await window.db.setAdminCredentials(sess.login || 'admin', newPass);
+  document.getElementById('set-cur-pass').value     = '';
+  document.getElementById('set-new-pass').value     = '';
+  document.getElementById('set-confirm-pass').value = '';
+  toast('Пароль изменён ✓');
+}
+
+async function renderRopList() {
+  const ops  = await window.db.loadOperators();
+  const rops = ops.filter(o => o.role === 'rop');
+  const el   = document.getElementById('rop-list');
+  if (!rops.length) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--muted)">Нет аккаунтов РОП</div>`;
+    return;
+  }
+  el.innerHTML = rops.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border2)">
+      <div>
+        <b style="font-size:13px">${esc(r.name)}</b>
+        ${r.ext ? `<span style="font-size:11px;color:var(--muted);margin-left:8px">${esc(r.ext)}</span>` : ''}
+        <span class="badge badge-purple" style="margin-left:8px;font-size:10px">РОП</span>
+        <span class="badge ${r.status==='active'?'badge-green':'badge-yellow'}" style="margin-left:4px;font-size:10px">${r.status==='active'?'Активен':'Неактивен'}</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openOpModal('${r.id}')">✏️ Изменить</button>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+checkAdminAuth();
+loadSipForm();
+refreshDashboard();
+</script>
+</body>
+</html>
