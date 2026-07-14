@@ -115,22 +115,27 @@ window.db = {
 
   // ── AUTH ──────────────────────────────────────────────────────
   async checkAdminLogin(login, pass) {
-    const res = await _sb.from('admin_config').select('*')
-      .eq('login', login).eq('pass', pass).limit(1);
-    return (_ok(res) || []).length > 0;
+    if (!login || !pass) return false;
+    // fetch by login only, compare pass in JS (avoids Supabase empty-string validation)
+    const res = await _sb.from('admin_config').select('*').eq('login', login).limit(1);
+    const rows = _ok(res) || [];
+    return rows.length > 0 && rows[0].pass === pass;
   },
 
   async checkOperatorLogin(loginOrExt, pass) {
-    // try by ext first, then by name
+    if (!loginOrExt || !pass) return null;
+    // try by ext first, then by name — compare pass in JS
     let res = await _sb.from('operators').select('*')
-      .eq('status', 'active').eq('ext', loginOrExt).eq('pass', pass).limit(1);
+      .eq('status', 'active').eq('ext', loginOrExt).limit(1);
     let ops = _ok(res) || [];
-    if (!ops.length) {
-      res = await _sb.from('operators').select('*')
-        .eq('status', 'active').ilike('name', loginOrExt).eq('pass', pass).limit(1);
-      ops = _ok(res) || [];
-    }
-    return ops[0] || null;
+    if (ops.length && ops[0].pass === pass) return ops[0];
+
+    res = await _sb.from('operators').select('*')
+      .eq('status', 'active').ilike('name', loginOrExt).limit(1);
+    ops = _ok(res) || [];
+    if (ops.length && ops[0].pass === pass) return ops[0];
+
+    return null;
   },
 
   async setAdminCredentials(login, pass) {
