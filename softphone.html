@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Софтфон</title>
+<script src="jssip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="db.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f13;
+    color: #e8e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px 32px;
+    gap: 0;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 20px;
+    margin-bottom: 4px;
+  }
+
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .topbar-logo svg { width: 32px; height: 32px; }
+  .topbar-logo-text { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+  .topbar-logo-text span.dot { color: #7c5cfc; }
+  .topbar-logo-text span.atc { color: #a78bfa; font-size: 16px; }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar-user {
+    font-size: 12px;
+    color: #6b6b88;
+  }
+  .topbar-user b { color: #a0a0c0; }
+
+  .logout-btn {
+    background: none;
+    border: 1px solid #2a2a3a;
+    border-radius: 7px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: #6b6b88;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .logout-btn:hover { border-color: #ef444466; color: #ef4444; }
+
+  .panels {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .panel {
+    background: #1a1a24;
+    border: 1px solid #2a2a38;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b6b88;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid #1f1f2e;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-bottom: 1px solid #1f1f2e;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .dot.offline     { background: #444; }
+  .dot.connecting  { background: #f59e0b; animation: pulse 1s infinite; }
+  .dot.registered  { background: #22c55e; }
+  .dot.error       { background: #ef4444; }
+  .dot.ringing     { background: #a78bfa; animation: pulse 0.5s infinite; }
+  .dot.incall      { background: #22c55e; animation: pulse 1.5s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  #status-text { color: #a0a0c0; font-size: 12px; }
+
+  /* ── NO CONFIG NOTICE ── */
+  #no-config {
+    display: none;
+    padding: 28px 20px;
+    text-align: center;
+    color: #5a5a7a;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  #no-config b { color: #7c5cfc; font-weight: 500; }
+
+  /* ── DISPLAY ── */
+  .display {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid #1f1f2e;
+  }
+
+  #number-display {
+    width: 100%;
+    background: #0f0f18;
+    border: 1px solid #2a2a3a;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 22px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #fff;
+    letter-spacing: 0.05em;
+    text-align: right;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #number-display:focus { border-color: #7c5cfc; }
+  #number-display::placeholder { color: #3a3a55; font-size: 14px; }
+
+  #caller-info {
+    display: none;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #7c5cfc;
+    text-align: center;
+  }
+
+  #call-timer {
+    display: none;
+    text-align: center;
+    font-size: 13px;
+    color: #6b6b88;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── DIALPAD ── */
+  .dialpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #1f1f2e;
+  }
+
+  .dial-btn {
+    background: #22223a;
+    border: 1px solid #2e2e48;
+    border-radius: 10px;
+    padding: 12px 0;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+  }
+  .dial-btn:hover  { background: #2d2d4a; }
+  .dial-btn:active { background: #3a3a60; transform: scale(0.96); }
+
+  .dial-btn .digit { font-size: 18px; font-weight: 600; color: #e8e8f0; display: block; }
+  .dial-btn .sub   { font-size: 9px; letter-spacing: 0.15em; color: #5a5a7a; display: block; margin-top: 1px; }
+
+  /* ── CONTROLS ── */
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 14px 18px;
+  }
+
+  .ctrl-btn {
+    background: #22223a;
+    border: 1px solid #2e2e48;
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 11px;
+    color: #8080a8;
+    transition: background 0.15s, color 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .ctrl-btn:hover  { background: #2d2d4a; color: #c0c0e0; }
+  .ctrl-btn.active { background: #7c5cfc22; border-color: #7c5cfc66; color: #a78bfa; }
+  .ctrl-btn .icon  { font-size: 18px; line-height: 1; }
+
+  .call-btn {
+    background: #22c55e;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    font-size: 22px;
+    transition: background 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .call-btn:hover  { background: #16a34a; }
+  .call-btn:active { transform: scale(0.95); }
+  .call-btn.hangup { background: #ef4444; }
+  .call-btn.hangup:hover { background: #dc2626; }
+
+  /* ── HISTORY ── */
+  .history { width: 280px; }
+  .history-list { max-height: 420px; overflow-y: auto; }
+
+  /* ── MY STATS ── */
+  .my-stats { width: 220px; }
+
+  .period-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #1f1f2e;
+  }
+  .ptab {
+    flex: 1;
+    padding: 5px 0;
+    text-align: center;
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #5a5a7a;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .ptab:hover { color: #a0a0c0; background: #1f1f2e; }
+  .ptab.active { background: #7c5cfc22; border-color: #7c5cfc55; color: #a78bfa; font-weight: 600; }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid #1a1a28;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row-label { font-size: 12px; color: #6b6b88; display: flex; align-items: center; gap: 6px; }
+  .stat-row-val   { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .dist-bar-wrap { padding: 12px 16px; border-bottom: 1px solid #1a1a28; }
+  .dist-bar-wrap .label { font-size: 10px; color: #5a5a7a; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; }
+  .dist-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    gap: 2px;
+    background: #1a1a28;
+  }
+  .dist-bar div { border-radius: 3px; transition: flex 0.4s; }
+  .dist-legend { display: flex; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
+  .dist-legend span { font-size: 10px; color: #5a5a7a; }
+
+  .streak-block {
+    padding: 12px 16px;
+    text-align: center;
+    border-bottom: 1px solid #1a1a28;
+  }
+  .streak-num  { font-size: 26px; font-weight: 800; color: #a78bfa; }
+  .streak-label{ font-size: 10px; color: #5a5a7a; margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+
+  .call-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 18px;
+    border-bottom: 1px solid #1a1a28;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .call-item:hover { background: #1f1f2e; }
+
+  .call-icon      { font-size: 16px; width: 20px; text-align: center; }
+  .call-icon.out  { color: #22c55e; }
+  .call-icon.in   { color: #60a5fa; }
+  .call-icon.miss { color: #ef4444; }
+
+  .call-num  { font-size: 13px; font-weight: 500; flex: 1; }
+  .call-meta { font-size: 11px; color: #5a5a7a; white-space: nowrap; }
+
+  .no-history { padding: 30px 18px; text-align: center; color: #3a3a55; font-size: 13px; }
+
+  /* ── OPERATOR INFO CHIP ── */
+  .op-chip {
+    background: #7c5cfc18;
+    border: 1px solid #7c5cfc44;
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: #a78bfa;
+  }
+
+  /* ── PRESENCE BAR ── */
+  .presence-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #1f1f2e;
+  }
+  .pres-btn {
+    flex: 1;
+    padding: 6px 4px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    background: #1a1a28;
+    color: #5a5a7a;
+    transition: all 0.15s;
+    line-height: 1.2;
+  }
+  .pres-btn:hover { opacity: 0.85; }
+  .pres-btn.active-online   { background: #22c55e22; border-color: #22c55e66; color: #22c55e; }
+  .pres-btn.active-break    { background: #f59e0b22; border-color: #f59e0b66; color: #f59e0b; }
+  .pres-btn.active-lunch    { background: #f9731622; border-color: #f9731666; color: #f97316; }
+  .pres-btn.active-official { background: #a78bfa22; border-color: #a78bfa66; color: #a78bfa; }
+
+  /* ── INCOMING OVERLAY ── */
+  #incoming-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: #00000099;
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #incoming-overlay.show { display: flex; }
+
+  .incoming-card {
+    background: #1a1a24;
+    border: 1px solid #2a2a38;
+    border-radius: 20px;
+    padding: 32px 40px;
+    text-align: center;
+    min-width: 280px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  .incoming-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: #7c5cfc22;
+    border: 2px solid #7c5cfc;
+    font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    animation: ringPulse 1s infinite;
+  }
+  @keyframes ringPulse {
+    0%, 100% { box-shadow: 0 0 0 0 #7c5cfc44; }
+    50%       { box-shadow: 0 0 0 16px #7c5cfc00; }
+  }
+
+  .incoming-label { font-size: 12px; color: #6b6b88; margin-bottom: 4px; }
+  .incoming-num   { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+  .incoming-btns  { display: flex; gap: 16px; justify-content: center; }
+  .incoming-btns .call-btn { width: 60px; height: 60px; border-radius: 50%; font-size: 24px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+  <a class="topbar-logo" href="login.html">
+    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="23" fill="url(#bg2)" opacity="0.6"/>
+      <path d="M24 10 C17 10 12 15 12 22 C12 26 13.5 29.5 16 32" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <path d="M24 14 C19 14 15 18 15 23 C15 26.5 16.5 29.5 19 31.5" stroke="#7c5cfc" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.65"/>
+      <path d="M24 18 C21 18 18 20.5 18 23.5 C18 26 19.5 28 22 29" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <circle cx="24" cy="22" r="5" stroke="white" stroke-width="2" fill="none"/>
+      <circle cx="24" cy="22" r="2.5" fill="#7c5cfc"/>
+      <line x1="29" y1="22" x2="38" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <line x1="35" y1="22" x2="35" y2="26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <line x1="38" y1="22" x2="38" y2="25" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <defs><radialGradient id="bg2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#7c5cfc" stop-opacity="0.15"/><stop offset="100%" stop-color="#7c5cfc" stop-opacity="0"/></radialGradient></defs>
+    </svg>
+    <span class="topbar-logo-text">biokey<span class="dot">.</span><span class="atc">ATC</span></span>
+  </a>
+  <div class="topbar-right">
+    <div class="topbar-user">Оператор: <b id="topbar-opname">—</b></div>
+    <button class="logout-btn" onclick="logout()">Выйти</button>
+  </div>
+</div>
+
+<div class="panels">
+
+<!-- ═══ SOFTPHONE ═══ -->
+<div class="panel" style="width:320px">
+  <div class="panel-title">
+    <span>Веб-Софтфон</span>
+    <span class="op-chip" id="op-chip">—</span>
+  </div>
+
+  <div class="status-bar">
+    <div class="dot offline" id="status-dot"></div>
+    <span id="status-text">Инициализация...</span>
+  </div>
+
+  <!-- статус присутствия -->
+  <div class="presence-bar">
+    <button class="pres-btn" id="pres-online"   onclick="setPresence('online')">В линии</button>
+    <button class="pres-btn" id="pres-break"    onclick="setPresence('break')">Перерыв</button>
+    <button class="pres-btn" id="pres-lunch"    onclick="setPresence('lunch')">Обед</button>
+    <button class="pres-btn" id="pres-official" onclick="setPresence('official')">Служебный</button>
+  </div>
+
+  <!-- нет конфига -->
+  <div id="no-config">
+    Конфигурация не найдена.<br>
+    Обратитесь к <b>администратору</b><br>для настройки подключения.
+  </div>
+
+  <!-- основной UI -->
+  <div id="phone-ui">
+    <div class="display">
+      <input id="number-display" type="tel" placeholder="Введите номер..." autocomplete="off" />
+      <div id="caller-info"></div>
+      <div id="call-timer">00:00</div>
+    </div>
+
+    <div class="dialpad">
+      <div class="dial-btn" data-digit="1"><span class="digit">1</span><span class="sub"> </span></div>
+      <div class="dial-btn" data-digit="2"><span class="digit">2</span><span class="sub">ABC</span></div>
+      <div class="dial-btn" data-digit="3"><span class="digit">3</span><span class="sub">DEF</span></div>
+      <div class="dial-btn" data-digit="4"><span class="digit">4</span><span class="sub">GHI</span></div>
+      <div class="dial-btn" data-digit="5"><span class="digit">5</span><span class="sub">JKL</span></div>
+      <div class="dial-btn" data-digit="6"><span class="digit">6</span><span class="sub">MNO</span></div>
+      <div class="dial-btn" data-digit="7"><span class="digit">7</span><span class="sub">PQRS</span></div>
+      <div class="dial-btn" data-digit="8"><span class="digit">8</span><span class="sub">TUV</span></div>
+      <div class="dial-btn" data-digit="9"><span class="digit">9</span><span class="sub">WXYZ</span></div>
+      <div class="dial-btn" data-digit="*"><span class="digit">*</span><span class="sub"> </span></div>
+      <div class="dial-btn" data-digit="0"><span class="digit">0</span><span class="sub">+</span></div>
+      <div class="dial-btn" data-digit="#"><span class="digit">#</span><span class="sub"> </span></div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="btn-mute" onclick="toggleMute()">
+        <span class="icon">🎙️</span><span>Микрофон</span>
+      </button>
+      <button class="call-btn" id="btn-call" onclick="handleCallBtn()">📞</button>
+      <button class="ctrl-btn" id="btn-hold" onclick="toggleHold()">
+        <span class="icon">⏸️</span><span>Удержание</span>
+      </button>
+      <button class="ctrl-btn" onclick="clearLastDigit()">
+        <span class="icon">⌫</span><span>Удалить</span>
+      </button>
+      <button class="ctrl-btn" onclick="transferCall()">
+        <span class="icon">↗️</span><span>Перевод</span>
+      </button>
+      <button class="ctrl-btn" onclick="openDTMF()">
+        <span class="icon">🔢</span><span>Тон</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ИСТОРИЯ ═══ -->
+<div class="panel history">
+  <div class="panel-title">История звонков</div>
+  <div class="history-list" id="history-list">
+    <div class="no-history">Звонков ещё нет</div>
+  </div>
+</div>
+
+<!-- ═══ МОЯ СТАТИСТИКА ═══ -->
+<div class="panel my-stats">
+  <div class="panel-title">Моя статистика</div>
+
+  <div class="period-tabs">
+    <div class="ptab active" data-p="today"   onclick="switchStatPeriod('today')">Сегодня</div>
+    <div class="ptab"        data-p="session" onclick="switchStatPeriod('session')">Сессия</div>
+    <div class="ptab"        data-p="all"     onclick="switchStatPeriod('all')">Всё</div>
+  </div>
+
+  <div class="streak-block">
+    <div class="streak-num" id="my-total">0</div>
+    <div class="streak-label">звонков</div>
+  </div>
+
+  <div class="dist-bar-wrap">
+    <div class="label">Распределение</div>
+    <div class="dist-bar" id="my-dist-bar">
+      <div style="flex:1;background:#2a2a38"></div>
+    </div>
+    <div class="dist-legend" id="my-dist-legend">
+      <span style="color:#5a5a7a">Нет данных</span>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-row-label"><span style="color:#22c55e">↗</span> Исходящие</div>
+    <div class="stat-row-val" id="my-out" style="color:#22c55e">0</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-row-label"><span style="color:#60a5fa">↙</span> Входящие</div>
+    <div class="stat-row-val" id="my-in" style="color:#60a5fa">0</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-row-label"><span style="color:#ef4444">✗</span> Пропущенные</div>
+    <div class="stat-row-val" id="my-miss" style="color:#ef4444">0</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-row-label">⏱ % принятых</div>
+    <div class="stat-row-val" id="my-pct" style="color:#a78bfa">—</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-row-label">🕐 Общ. время</div>
+    <div class="stat-row-val" id="my-time" style="font-size:13px">0с</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-row-label">📊 Среднее</div>
+    <div class="stat-row-val" id="my-avg" style="font-size:13px">—</div>
+  </div>
+</div>
+
+</div><!-- /panels -->
+
+<!-- ═══ ВХОДЯЩИЙ ═══ -->
+<div id="incoming-overlay">
+  <div class="incoming-card">
+    <div class="incoming-avatar">📞</div>
+    <div class="incoming-label">Входящий звонок</div>
+    <div class="incoming-num" id="incoming-num">Неизвестный</div>
+    <div class="incoming-btns">
+      <button class="call-btn" onclick="answerCall()">📞</button>
+      <button class="call-btn hangup" onclick="rejectCall()">📵</button>
+    </div>
+  </div>
+</div>
+
+<audio id="remoteAudio" autoplay></audio>
+
+<script>
+// ═══ STATE ═══
+let ua = null, currentSession = null;
+let isMuted = false, isOnHold = false;
+let timerInterval = null, callSeconds = 0;
+let callHistory = [];
+let operatorInfo = null;
+let currentPresence = 'online';
+
+// ═══ PRESENCE ═══
+const PRESENCE_MAP = {
+  online:   { label: 'В линии',   cls: 'active-online' },
+  break:    { label: 'Перерыв',   cls: 'active-break' },
+  lunch:    { label: 'Обед',      cls: 'active-lunch' },
+  official: { label: 'Служебный', cls: 'active-official' },
+};
+
+async function setPresence(status) {
+  currentPresence = status;
+  // update UI
+  ['online','break','lunch','official'].forEach(s => {
+    const btn = document.getElementById('pres-' + s);
+    if (!btn) return;
+    btn.className = 'pres-btn' + (s === status ? ' active-' + s : '');
+  });
+  // save to Supabase
+  if (operatorInfo?.id) {
+    try { await window.db.setPresence(operatorInfo.id, status); }
+    catch(e) { console.warn('[presence] save failed', e); }
+  }
+}
+
+function initPresence() {
+  // set default 'online' on login
+  setPresence('online');
+}
+
+// ═══ INIT — читаем конфиг из Supabase ═══
+async function init() {
+  // Load call history from Supabase
+  try {
+    const history = await window.db.loadCDR({ limit: 500 });
+    callHistory = history;
+    renderHistory();
+  } catch(e) { console.warn('[init] CDR load failed', e); }
+
+  // Load SIP config
+  let row, cfg;
+  try {
+    row = await window.db.loadConfig();
+    cfg = window.db.configToLegacy(row);
+  } catch(e) {
+    setStatus('error', 'Ошибка загрузки конфига');
+    return;
+  }
+
+  if (!cfg || !cfg.server || !cfg.domain) {
+    document.getElementById('no-config').style.display = 'block';
+    document.getElementById('phone-ui').style.display = 'none';
+    setStatus('error', 'Нет конфигурации');
+    return;
+  }
+
+  // Operator info from session (set during login)
+  const sess = sessionStorage.getItem('atc_session');
+  if (sess) {
+    try {
+      const s = JSON.parse(sess);
+      operatorInfo = { name: s.name, ext: s.ext, id: s.id };
+      document.getElementById('op-chip').textContent = s.name || s.ext || '—';
+      // Operator SIP credentials: username=ext, password=ext (Asterisk local auth)
+      if (s.ext) {
+        cfg.user = s.ext;
+        cfg.pass = `Bk@${s.ext}#Atc2026`; // Strong password
+      }
+      // Set presence to online on login
+      initPresence();
+    } catch(e) {}
+  }
+
+  // If server uses our Asterisk (185.102.75.229), show cert warning if needed
+  if (cfg.server && cfg.server.includes('185.102.75.229')) {
+    const certAccepted = sessionStorage.getItem('cert_accepted_185102');
+    if (!certAccepted) {
+      const warnDiv = document.createElement('div');
+      warnDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#f59e0b;color:#000;padding:10px 20px;font-size:13px;z-index:9999;text-align:center;';
+      warnDiv.innerHTML = '⚠️ Для работы телефонии необходимо <a href="https://185.102.75.229:8089" target="_blank" style="color:#000;font-weight:bold;text-decoration:underline" onclick="sessionStorage.setItem(\'cert_accepted_185102\',\'1\');this.parentElement.remove()">принять сертификат сервера</a> (откроется страница — нажми "Дополнительно" → "Перейти")';
+      document.body.prepend(warnDiv);
+    }
+  }
+
+  connectSIP(cfg);
+}
+
+// ═══ SIP ═══
+function connectSIP(cfg) {
+  setStatus('connecting', 'Подключение...');
+
+  const config = {
+    sockets: [new JsSIP.WebSocketInterface(cfg.server)],
+    uri: `sip:${cfg.user}@${cfg.domain}`,
+    password: cfg.pass || '',
+    register: true,
+    session_timers: false,
+    pcConfig: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'turn:185.102.75.229:3478?transport=tcp', username: 'atcuser', credential: 'biokeyTURN2024' },
+      ]
+    },
+  };
+
+  try { ua = new JsSIP.UA(config); }
+  catch(e) { setStatus('error', 'Ошибка: ' + e.message); return; }
+
+  ua.on('connecting',  () => setStatus('connecting', 'Подключение...'));
+  ua.on('registered',  () => setStatus('registered', `${cfg.user}@${cfg.domain}`));
+  ua.on('unregistered',() => setStatus('offline', 'Не зарегистрирован'));
+  ua.on('disconnected',() => setStatus('offline', 'Отключён'));
+  ua.on('registrationFailed', e => setStatus('error', 'Ошибка: ' + (e.cause || 'регистрация')));
+
+  ua.on('newRTCSession', e => {
+    const session = e.session;
+    if (session.direction !== 'incoming') return;
+    if (currentSession) { session.terminate(); return; }
+
+    currentSession = session;
+    const num = session.remote_identity?.uri?.user || 'Неизвестный';
+
+    setStatus('ringing', 'Входящий: ' + num);
+    document.getElementById('incoming-num').textContent = num;
+    document.getElementById('incoming-overlay').classList.add('show');
+
+    session.on('peerconnection', e => {
+      e.peerconnection.addEventListener('track', ev => {
+        const _a = document.getElementById('remoteAudio'); _a.srcObject = (ev.streams && ev.streams[0]) ? ev.streams[0] : new MediaStream([ev.track]); _a.play().catch(() => {});
+      });
+    });
+    session.on('confirmed', () => {
+      document.getElementById('incoming-overlay').classList.remove('show');
+      setCallBtn('hangup');
+      setStatus('incall', 'Разговор: ' + num);
+      startTimer();
+    });
+    session.on('failed', () => onCallEnded(num, 'miss'));
+    session.on('ended',  () => onCallEnded(num, 'in'));
+  });
+
+  ua.start();
+}
+
+// ═══ CALL ═══
+function handleCallBtn() {
+  currentSession ? endCall() : makeCall();
+}
+
+function makeCall() {
+  if (!ua || !ua.isRegistered()) return;
+  const target = document.getElementById('number-display').value.trim();
+  if (!target) return;
+
+  const cfg = getConfig();
+  const uri = target.includes('@') ? `sip:${target}` : `sip:${target}@${cfg.domain}`;
+
+  try {
+    currentSession = ua.call(uri, {
+      mediaConstraints: { audio: true, video: false },
+      pcConfig: { iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:185.102.75.229:3478?transport=tcp', username: 'atcuser', credential: 'biokeyTURN2024' },
+      ]}
+    });
+  } catch(e) { alert('Ошибка: ' + e.message); return; }
+
+  setCallBtn('hangup');
+  setStatus('ringing', 'Вызов: ' + target);
+  showCallerInfo('⏳ Ожидание ответа...');
+
+  currentSession.on('peerconnection', e => {
+    e.peerconnection.addEventListener('track', ev => {
+      const _a = document.getElementById('remoteAudio'); _a.srcObject = (ev.streams && ev.streams[0]) ? ev.streams[0] : new MediaStream([ev.track]); _a.play().catch(() => {});
+    });
+  });
+  currentSession.on('confirmed', () => {
+    setStatus('incall', 'Разговор: ' + target);
+    showCallerInfo('');
+    startTimer();
+  });
+  currentSession.on('failed', () => onCallEnded(target, 'miss'));
+  currentSession.on('ended',  () => onCallEnded(target, 'out'));
+}
+
+function endCall()    { currentSession?.terminate(); }
+function answerCall() {
+  if (!currentSession) return;
+  document.getElementById('incoming-overlay').classList.remove('show');
+  currentSession.answer({
+    mediaConstraints: { audio: true, video: false },
+    pcConfig: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'turn:185.102.75.229:3478?transport=tcp', username: 'atcuser', credential: 'biokeyTURN2024' },
+    ]}
+  });
+  setCallBtn('hangup');
+}
+function rejectCall() {
+  currentSession?.terminate({ status_code: 486 });
+  document.getElementById('incoming-overlay').classList.remove('show');
+}
+
+function onCallEnded(num, type) {
+  stopTimer();
+  setCallBtn('call');
+  showCallerInfo('');
+  document.getElementById('incoming-overlay').classList.remove('show');
+  setStatus('registered', '');
+  isMuted = false; isOnHold = false;
+  document.getElementById('btn-mute').classList.remove('active');
+  document.getElementById('btn-hold').classList.remove('active');
+  currentSession = null;
+  addHistory(num, type, callSeconds);
+}
+
+// ═══ MUTE / HOLD ═══
+function toggleMute() {
+  if (!currentSession) return;
+  isMuted = !isMuted;
+  isMuted ? currentSession.mute() : currentSession.unmute();
+  const btn = document.getElementById('btn-mute');
+  btn.classList.toggle('active', isMuted);
+  btn.querySelector('span:last-child').textContent = isMuted ? 'Выкл. микр.' : 'Микрофон';
+}
+
+function toggleHold() {
+  if (!currentSession) return;
+  isOnHold = !isOnHold;
+  isOnHold ? currentSession.hold() : currentSession.unhold();
+  document.getElementById('btn-hold').classList.toggle('active', isOnHold);
+}
+
+function transferCall() {
+  if (!currentSession) { alert('Нет активного звонка'); return; }
+  const t = prompt('Номер для перевода:');
+  if (!t) return;
+  const cfg = getConfig();
+  currentSession.refer(t.includes('@') ? `sip:${t}` : `sip:${t}@${cfg.domain}`);
+}
+
+function openDTMF() {
+  if (!currentSession) { alert('Нет активного звонка'); return; }
+  const tones = prompt('DTMF (напр. 123#):');
+  if (tones) tones.split('').forEach((c, i) => setTimeout(() => currentSession?.sendDTMF(c), i * 200));
+}
+
+// ═══ DIALPAD ═══
+document.querySelectorAll('.dial-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const d = btn.dataset.digit;
+    if (currentSession) { currentSession.sendDTMF(d); return; }
+    document.getElementById('number-display').value += d;
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if ('0123456789*#+'.includes(e.key) && document.activeElement.id !== 'number-display') {
+    currentSession ? currentSession.sendDTMF(e.key)
+                   : (document.getElementById('number-display').value += e.key);
+  }
+  if (e.key === 'Enter') handleCallBtn();
+  if (e.key === 'Backspace' && document.activeElement.id !== 'number-display') clearLastDigit();
+});
+
+function clearLastDigit() {
+  if (!currentSession) {
+    const el = document.getElementById('number-display');
+    el.value = el.value.slice(0, -1);
+  }
+}
+
+// ═══ HISTORY ═══
+async function addHistory(num, type, dur) {
+  const op    = operatorInfo?.name || operatorInfo?.ext || '';
+  const entry = { num, type, dur, time: new Date().toISOString(), op };
+  callHistory.unshift(entry);
+  sessionCalls.unshift(entry);
+  try { await window.db.addCDR(entry); } catch(e) { console.warn('[addHistory]', e); }
+  renderHistory();
+  renderMyStats();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!callHistory.length) { list.innerHTML = '<div class="no-history">Звонков ещё нет</div>'; return; }
+  const icons = { out: '↗', in: '↙', miss: '✗' };
+  list.innerHTML = callHistory.slice(0, 50).map(c => {
+    const t = new Date(c.time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const dur = c.dur ? formatDur(c.dur) : '';
+    return `<div class="call-item" onclick="document.getElementById('number-display').value='${c.num}'">
+      <span class="call-icon ${c.type}">${icons[c.type]||'?'}</span>
+      <span class="call-num">${c.num}</span>
+      <span class="call-meta">${t}${dur ? ' · '+dur : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══ UI HELPERS ═══
+function setStatus(state, text) {
+  document.getElementById('status-dot').className = 'dot ' + state;
+  if (text) document.getElementById('status-text').textContent = text;
+}
+function setCallBtn(mode) {
+  const btn = document.getElementById('btn-call');
+  btn.textContent = mode === 'hangup' ? '📵' : '📞';
+  btn.className = mode === 'hangup' ? 'call-btn hangup' : 'call-btn';
+}
+function showCallerInfo(t) {
+  const el = document.getElementById('caller-info');
+  el.textContent = t; el.style.display = t ? 'block' : 'none';
+}
+function startTimer() {
+  callSeconds = 0;
+  document.getElementById('call-timer').style.display = 'block';
+  timerInterval = setInterval(() => {
+    callSeconds++;
+    const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+    const s = String(callSeconds%60).padStart(2,'0');
+    document.getElementById('call-timer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  document.getElementById('call-timer').style.display = 'none';
+  document.getElementById('call-timer').textContent = '00:00';
+}
+async function getConfig() {
+  const row = await window.db.loadConfig();
+  return window.db.configToLegacy(row) || {};
+}
+function formatDur(s) {
+  return s < 60 ? `${s}с` : `${Math.floor(s/60)}м ${s%60}с`;
+}
+
+// ═══ MY STATS ═══
+let statPeriod = 'today';
+let sessionStartTime = new Date();
+let sessionCalls = [];  // calls made in this browser session (not persisted)
+
+function switchStatPeriod(p) {
+  statPeriod = p;
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.p === p));
+  renderMyStats();
+}
+
+function getMyStatCalls() {
+  const op = operatorInfo?.name || operatorInfo?.ext || null;
+  const allCDR = callHistory; // already filtered to this operator when saved
+
+  if (statPeriod === 'session') {
+    return sessionCalls;
+  }
+  if (statPeriod === 'today') {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return allCDR.filter(c => c.time && c.time.slice(0, 10) === todayStr);
+  }
+  // 'all'
+  return allCDR;
+}
+
+function renderMyStats() {
+  const calls = getMyStatCalls();
+  const total  = calls.length;
+  const out    = calls.filter(c => c.type === 'out').length;
+  const inc    = calls.filter(c => c.type === 'in').length;
+  const miss   = calls.filter(c => c.type === 'miss').length;
+  const answered = out + inc;
+  const totalSec = calls.reduce((s, c) => s + (c.dur || 0), 0);
+  const avgSec   = answered ? Math.round(totalSec / answered) : 0;
+  const pct      = total ? Math.round(answered / total * 100) : null;
+
+  document.getElementById('my-total').textContent = total;
+  document.getElementById('my-out').textContent   = out;
+  document.getElementById('my-in').textContent    = inc;
+  document.getElementById('my-miss').textContent  = miss;
+  document.getElementById('my-pct').textContent   = pct !== null ? pct + '%' : '—';
+  document.getElementById('my-time').textContent  = formatDurLong(totalSec);
+  document.getElementById('my-avg').textContent   = avgSec ? formatDur(avgSec) : '—';
+
+  // colour % by performance
+  const pctEl = document.getElementById('my-pct');
+  pctEl.style.color = pct === null ? '#6b6b88'
+    : pct >= 80 ? '#22c55e'
+    : pct >= 50 ? '#f59e0b'
+    : '#ef4444';
+
+  // distribution bar
+  const bar    = document.getElementById('my-dist-bar');
+  const legend = document.getElementById('my-dist-legend');
+  if (!total) {
+    bar.innerHTML    = '<div style="flex:1;background:#2a2a38;border-radius:3px"></div>';
+    legend.innerHTML = '<span style="color:#5a5a7a">Нет данных</span>';
+    return;
+  }
+  const pOut  = Math.round(out  / total * 100);
+  const pIn   = Math.round(inc  / total * 100);
+  const pMiss = Math.max(0, 100 - pOut - pIn);
+  bar.innerHTML = `
+    <div style="flex:${pOut||0};background:#22c55e;min-width:${pOut?2:0}px"></div>
+    <div style="flex:${pIn||0};background:#60a5fa;min-width:${pIn?2:0}px"></div>
+    <div style="flex:${pMiss||0};background:#ef4444;min-width:${pMiss?2:0}px"></div>`;
+  legend.innerHTML = `
+    <span style="color:#22c55e">↗ ${pOut}%</span>
+    <span style="color:#60a5fa">↙ ${pIn}%</span>
+    <span style="color:#ef4444">✗ ${pMiss}%</span>`;
+}
+
+function formatDurLong(s) {
+  if (!s) return '0с';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h) return `${h}ч ${m}м`;
+  if (m) return `${m}м ${sec}с`;
+  return `${sec}с`;
+}
+
+// ═══ AUTH GUARD ═══
+function checkAuth() {
+  const sess = sessionStorage.getItem('atc_session');
+  if (!sess) { window.location.href = 'login.html'; return; }
+  try {
+    const s = JSON.parse(sess);
+    if (s.role === 'admin') { window.location.href = 'admin.html'; return; }
+    // show name in topbar
+    document.getElementById('topbar-opname').textContent = s.name || s.ext || '—';
+  } catch(e) {
+    window.location.href = 'login.html';
+  }
+}
+
+async function logout() {
+  if (currentSession) currentSession.terminate();
+  if (ua) { try { ua.stop(); } catch(e) {} }
+  // Set presence to offline before leaving
+  if (operatorInfo?.id) {
+    try { await window.db.setPresence(operatorInfo.id, 'offline'); } catch(e) {}
+  }
+  sessionStorage.removeItem('atc_session');
+  window.location.href = 'login.html';
+}
+
+if (typeof JsSIP !== 'undefined') JsSIP.debug.disable('JsSIP:*');
+checkAuth();
+init();
+renderMyStats();
+</script>
+</body>
+</html>
