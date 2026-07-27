@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>biokey.ATC — Панель управления</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="db.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a10; color: #e8e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ── TOPBAR ── */
+.topbar { background: #13131e; border-bottom: 1px solid #2a2a3e; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; height: 56px; flex-shrink: 0; }
+.topbar-logo { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.02em; text-decoration: none; }
+.topbar-logo span { color: #7c5cfc; }
+.topbar-logo small { color: #a78bfa; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-user { font-size: 13px; color: #6b6b88; }
+.topbar-user b { color: #a0a0c0; }
+.btn-softphone { background: #7c5cfc22; border: 1px solid #7c5cfc55; color: #a78bfa; padding: 6px 14px; border-radius: 6px; font-size: 13px; text-decoration: none; cursor: pointer; }
+.btn-softphone:hover { background: #7c5cfc33; }
+.btn-logout { background: none; border: 1px solid #2a2a3e; color: #6b6b88; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.btn-logout:hover { border-color: #ef444466; color: #ef4444; }
+
+/* ── TABS ── */
+.tabs { background: #0f0f18; border-bottom: 1px solid #2a2a3e; padding: 0 28px; display: flex; gap: 4px; flex-shrink: 0; }
+.tab { padding: 14px 20px; font-size: 14px; font-weight: 600; color: #5a5a7a; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; user-select: none; }
+.tab:hover { color: #a0a0c0; }
+.tab.active { color: #a78bfa; border-bottom-color: #7c5cfc; }
+
+/* ── CONTENT ── */
+.content { flex: 1; padding: 24px 28px; overflow-y: auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── РАБОЧИЙ СТОЛ ── */
+.section-title { font-size: 18px; font-weight: 700; color: #e8e8f0; margin-bottom: 20px; }
+.ops-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.op-card { background: #13131e; border: 1px solid #2a2a3e; border-radius: 14px; padding: 18px; transition: border-color 0.2s; }
+.op-card.online  { border-color: #22c55e44; }
+.op-card.break   { border-color: #f59e0b44; }
+.op-card.lunch   { border-color: #60a5fa44; }
+.op-card.official{ border-color: #a78bfa44; }
+.op-card.offline { border-color: #2a2a3e; opacity: 0.6; }
+.op-name { font-size: 15px; font-weight: 700; color: #e8e8f0; margin-bottom: 6px; }
+.op-ext  { font-size: 12px; color: #5a5a7a; margin-bottom: 12px; }
+.op-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+.op-status.online   { background: #22c55e22; color: #22c55e; }
+.op-status.break    { background: #f59e0b22; color: #f59e0b; }
+.op-status.lunch    { background: #60a5fa22; color: #60a5fa; }
+.op-status.official { background: #a78bfa22; color: #a78bfa; }
+.op-status.offline  { background: #33333366; color: #666; }
+.op-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* ── STATS CARDS ── */
+.stats-row { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+.stat-card { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px 20px; min-width: 150px; flex: 1; }
+.stat-label { font-size: 11px; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: 800; color: #a78bfa; }
+.stat-sub   { font-size: 12px; color: #5a5a7a; margin-top: 4px; }
+
+/* ── FILTERS ── */
+.filters { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 20px; }
+.filter-group { display: flex; flex-direction: column; gap: 5px; }
+.filter-group label { font-size: 11px; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.06em; }
+.filter-input, .filter-select { background: #0a0a10; border: 1px solid #2a2a3e; border-radius: 8px; color: #e8e8f0; padding: 8px 12px; font-size: 13px; outline: none; }
+.filter-input { width: 180px; }
+.filter-input:focus, .filter-select:focus { border-color: #7c5cfc; }
+.btn-reset { background: none; border: 1px solid #2a2a3e; color: #6b6b88; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.btn-reset:hover { border-color: #7c5cfc55; color: #a78bfa; }
+
+/* ── TABLE ── */
+.table-wrap { background: #13131e; border: 1px solid #2a2a3e; border-radius: 14px; overflow: hidden; }
+.table-header-row { padding: 14px 20px; border-bottom: 1px solid #2a2a3e; font-size: 13px; color: #5a5a7a; display: flex; justify-content: space-between; align-items: center; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #2a2a3e; }
+td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #1a1a28; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #1a1a24; }
+.badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge.in  { background: #60a5fa22; color: #60a5fa; }
+.badge.out { background: #22c55e22; color: #22c55e; }
+.badge.miss{ background: #ef444422; color: #ef4444; }
+.clickable { cursor: pointer; color: #a78bfa; text-decoration: underline dotted; }
+.empty-state { text-align: center; padding: 48px 20px; color: #3a3a55; font-size: 14px; }
+
+/* ── RECORDINGS ── */
+audio { width: 100%; height: 32px; }
+.rec-error { background: #ef444411; border: 1px solid #ef444433; border-radius: 10px; padding: 16px; color: #f87171; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="topbar-logo" href="admin.html">biokey<span>.</span><small>ATC</small></a>
+  <div class="topbar-right">
+    <div class="topbar-user">Вы: <b id="topbar-name">—</b></div>
+    <a href="softphone.html" class="btn-softphone">📞 Softphone</a>
+    <button class="btn-logout" onclick="logout()">Выйти</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('desktop')">🖥 Рабочий стол</div>
+  <div class="tab" onclick="showTab('history')">📞 История звонков</div>
+  <div class="tab" onclick="showTab('recordings')">🎙 Записи разговоров</div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ РАБОЧИЙ СТОЛ ═══ -->
+  <div class="tab-panel active" id="panel-desktop">
+    <div class="stats-row" id="desktop-stats">
+      <div class="stat-card"><div class="stat-label">Всего операторов</div><div class="stat-value" id="s-total">—</div></div>
+      <div class="stat-card"><div class="stat-label">В линии</div><div class="stat-value" style="color:#22c55e" id="s-online">—</div></div>
+      <div class="stat-card"><div class="stat-label">На паузе</div><div class="stat-value" style="color:#f59e0b" id="s-pause">—</div></div>
+      <div class="stat-card"><div class="stat-label">Офлайн</div><div class="stat-value" style="color:#5a5a7a" id="s-offline">—</div></div>
+    </div>
+    <div class="section-title">Операторы</div>
+    <div class="ops-grid" id="ops-grid">
+      <div class="empty-state">Загрузка...</div>
+    </div>
+  </div>
+
+  <!-- ═══ ИСТОРИЯ ЗВОНКОВ ═══ -->
+  <div class="tab-panel" id="panel-history">
+    <div class="stats-row" id="history-stats">
+      <div class="stat-card"><div class="stat-label">Всего</div><div class="stat-value" id="h-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">Входящие</div><div class="stat-value" style="color:#60a5fa" id="h-in">0</div></div>
+      <div class="stat-card"><div class="stat-label">Исходящие</div><div class="stat-value" style="color:#22c55e" id="h-out">0</div></div>
+      <div class="stat-card"><div class="stat-label">Пропущенные</div><div class="stat-value" style="color:#ef4444" id="h-miss">0</div></div>
+      <div class="stat-card"><div class="stat-label">Сегодня</div><div class="stat-value" style="color:#a78bfa" id="h-today">0</div></div>
+    </div>
+    <div class="filters">
+      <div class="filter-group">
+        <label>Номер телефона</label>
+        <input class="filter-input" id="f-num" placeholder="+7..." oninput="filterHistory()" />
+      </div>
+      <div class="filter-group">
+        <label>Тип</label>
+        <select class="filter-select" id="f-type" onchange="filterHistory()">
+          <option value="">Все</option>
+          <option value="in">Входящий</option>
+          <option value="out">Исходящий</option>
+          <option value="miss">Пропущенный</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Оператор</label>
+        <input class="filter-input" id="f-op" placeholder="Имя оператора" oninput="filterHistory()" />
+      </div>
+      <div class="filter-group">
+        <label>Дата от</label>
+        <input class="filter-input" id="f-from" type="date" onchange="filterHistory()" />
+      </div>
+      <div class="filter-group">
+        <label>Дата до</label>
+        <input class="filter-input" id="f-to" type="date" onchange="filterHistory()" />
+      </div>
+      <button class="btn-reset" onclick="resetHistoryFilters()">Сбросить</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header-row">
+        <span>История всех операторов</span>
+        <span id="h-count" style="color:#a78bfa">0 записей</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Дата / Время</th><th>Тип</th><th>Номер</th><th>Оператор</th><th>Длительность</th>
+        </tr></thead>
+        <tbody id="history-tbody"><tr><td colspan="5" class="empty-state">Загрузка...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ ЗАПИСИ РАЗГОВОРОВ ═══ -->
+  <div class="tab-panel" id="panel-recordings">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Всего записей</div><div class="stat-value" id="r-total">—</div></div>
+      <div class="stat-card"><div class="stat-label">Входящие</div><div class="stat-value" style="color:#60a5fa" id="r-in">—</div></div>
+      <div class="stat-card"><div class="stat-label">Исходящие</div><div class="stat-value" style="color:#22c55e" id="r-out">—</div></div>
+      <div class="stat-card"><div class="stat-label">Сегодня</div><div class="stat-value" style="color:#a78bfa" id="r-today">—</div></div>
+    </div>
+    <div class="filters">
+      <div class="filter-group">
+        <label>Номер телефона</label>
+        <input class="filter-input" id="rf-num" placeholder="+7..." oninput="filterRec()" />
+      </div>
+      <div class="filter-group">
+        <label>Направление</label>
+        <select class="filter-select" id="rf-dir" onchange="filterRec()">
+          <option value="">Все</option>
+          <option value="in">Входящий</option>
+          <option value="out">Исходящий</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Добавочный</label>
+        <input class="filter-input" id="rf-ext" placeholder="1001" oninput="filterRec()" style="width:120px" />
+      </div>
+      <div class="filter-group">
+        <label>Дата от</label>
+        <input class="filter-input" id="rf-from" type="date" onchange="filterRec()" />
+      </div>
+      <div class="filter-group">
+        <label>Дата до</label>
+        <input class="filter-input" id="rf-to" type="date" onchange="filterRec()" />
+      </div>
+      <button class="btn-reset" onclick="resetRecFilters()">Сбросить</button>
+    </div>
+    <div id="rec-error" class="rec-error" style="display:none">
+      ⚠️ Нет соединения с сервером записей. <a href="https://185.102.75.229:8089/recordings-api/" target="_blank" style="color:#f87171">Принять сертификат</a> и обновить страницу.
+    </div>
+    <div class="table-wrap">
+      <div class="table-header-row">
+        <span>Записи разговоров</span>
+        <span id="r-count" style="color:#a78bfa">0 записей</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Дата / Время</th><th>Тип</th><th>Номер</th><th>Добавочный</th><th>Запись</th>
+        </tr></thead>
+        <tbody id="rec-tbody"><tr><td colspan="5" class="empty-state">Загрузка...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+// ── AUTH ──────────────────────────────────────────────────────
+function checkAuth() {
+  const sess = sessionStorage.getItem('atc_session');
+  if (!sess) { window.location.href = 'login.html'; return null; }
+  try {
+    const s = JSON.parse(sess);
+    if (s.role !== 'admin' && s.role !== 'rop') { window.location.href = 'softphone.html'; return null; }
+    document.getElementById('topbar-name').textContent = s.name || s.login || '—';
+    return s;
+  } catch(e) { window.location.href = 'login.html'; return null; }
+}
+
+function logout() {
+  sessionStorage.removeItem('atc_session');
+  window.location.href = 'login.html';
+}
+
+// ── TABS ──────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['desktop','history','recordings'][i] === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (id === 'recordings' && !recLoaded) loadRecordings();
+}
+
+// ── РАБОЧИЙ СТОЛ ──────────────────────────────────────────────
+let operators = [];
+
+async function loadDesktop() {
+  try {
+    operators = await window.db.loadOperators();
+    renderDesktop();
+    window.db.subscribePresence(op => {
+      const i = operators.findIndex(o => o.id === op.id);
+      if (i >= 0) { operators[i] = { ...operators[i], ...op }; renderDesktop(); }
+    });
+  } catch(e) { document.getElementById('ops-grid').innerHTML = '<div class="empty-state">Ошибка загрузки</div>'; }
+}
+
+function presLabel(p) {
+  return { online: 'В линии', break: 'Перерыв', lunch: 'Обед', official: 'Служебный', offline: 'Офлайн' }[p] || 'Офлайн';
+}
+
+function renderDesktop() {
+  const active = operators.filter(o => o.status === 'active');
+  const online   = active.filter(o => o.presence === 'online').length;
+  const pause    = active.filter(o => ['break','lunch','official'].includes(o.presence)).length;
+  const offline  = active.filter(o => !o.presence || o.presence === 'offline').length;
+  document.getElementById('s-total').textContent  = active.length;
+  document.getElementById('s-online').textContent = online;
+  document.getElementById('s-pause').textContent  = pause;
+  document.getElementById('s-offline').textContent= offline;
+
+  const grid = document.getElementById('ops-grid');
+  if (!active.length) { grid.innerHTML = '<div class="empty-state">Нет операторов</div>'; return; }
+  grid.innerHTML = active.map(op => {
+    const p = op.presence || 'offline';
+    return `<div class="op-card ${p}">
+      <div class="op-name">${op.name}</div>
+      <div class="op-ext">Добавочный: ${op.ext || '—'}</div>
+      <span class="op-status ${p}"><span class="op-dot"></span>${presLabel(p)}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── ИСТОРИЯ ЗВОНКОВ ──────────────────────────────────────────
+let allCDR = [], filteredCDR = [];
+
+async function loadHistory() {
+  try {
+    allCDR = await window.db.loadCDR({ limit: 1000 });
+    updateHistoryStats();
+    filterHistory();
+  } catch(e) { document.getElementById('history-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Ошибка загрузки</td></tr>'; }
+}
+
+function updateHistoryStats() {
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('h-total').textContent = allCDR.length;
+  document.getElementById('h-in').textContent    = allCDR.filter(c => c.type==='in').length;
+  document.getElementById('h-out').textContent   = allCDR.filter(c => c.type==='out').length;
+  document.getElementById('h-miss').textContent  = allCDR.filter(c => c.type==='miss').length;
+  document.getElementById('h-today').textContent = allCDR.filter(c => c.time?.startsWith(today)).length;
+}
+
+function filterHistory() {
+  const num  = document.getElementById('f-num').value.trim().toLowerCase();
+  const type = document.getElementById('f-type').value;
+  const op   = document.getElementById('f-op').value.trim().toLowerCase();
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+  filteredCDR = allCDR.filter(c => {
+    if (num  && !c.num?.toLowerCase().includes(num)) return false;
+    if (type && c.type !== type) return false;
+    if (op   && !c.op?.toLowerCase().includes(op))  return false;
+    if (from && c.time < from) return false;
+    if (to   && c.time.slice(0,10) > to) return false;
+    return true;
+  });
+  renderHistory();
+}
+
+function resetHistoryFilters() {
+  ['f-num','f-op','f-from','f-to'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-type').value = '';
+  filterHistory();
+}
+
+function durStr(sec) {
+  if (!sec) return '—';
+  const m = Math.floor(sec/60), s = sec%60;
+  return m ? `${m}м ${s}с` : `${s}с`;
+}
+
+function renderHistory() {
+  document.getElementById('h-count').textContent = filteredCDR.length + ' записей';
+  const tbody = document.getElementById('history-tbody');
+  if (!filteredCDR.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Нет данных</td></tr>'; return; }
+  const typeMap = { in: ['in','↙ Входящий'], out: ['out','↗ Исходящий'], miss: ['miss','✗ Пропущен'] };
+  tbody.innerHTML = filteredCDR.slice(0,500).map(c => {
+    const dt = c.time ? new Date(c.time) : null;
+    const date = dt ? dt.toLocaleDateString('ru') : '—';
+    const time = dt ? dt.toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}) : '—';
+    const [cls, label] = typeMap[c.type] || ['miss', c.type];
+    return `<tr>
+      <td>${date} ${time}</td>
+      <td><span class="badge ${cls}">${label}</span></td>
+      <td class="clickable" onclick="document.getElementById('f-num').value='${c.num}';filterHistory()">${c.num || '—'}</td>
+      <td>${c.op || '—'}</td>
+      <td>${durStr(c.dur)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ЗАПИСИ РАЗГОВОРОВ ──────────────────────────────────────────
+const API = 'https://185.102.75.229:8089/recordings-api/';
+const REC = 'https://185.102.75.229:8089/recordings/';
+let allRec = [], recLoaded = false;
+
+async function loadRecordings() {
+  recLoaded = true;
+  try {
+    const r = await fetch(API);
+    if (!r.ok) throw new Error(r.status);
+    allRec = await r.json();
+    updateRecStats();
+    filterRec();
+    document.getElementById('rec-error').style.display = 'none';
+  } catch(e) {
+    document.getElementById('rec-error').style.display = 'block';
+    document.getElementById('rec-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Не удалось загрузить записи</td></tr>';
+  }
+}
+
+function updateRecStats() {
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('r-total').textContent = allRec.length;
+  document.getElementById('r-in').textContent    = allRec.filter(r => r.direction==='in').length;
+  document.getElementById('r-out').textContent   = allRec.filter(r => r.direction==='out').length;
+  document.getElementById('r-today').textContent = allRec.filter(r => r.date===today).length;
+}
+
+function filterRec() {
+  const num  = document.getElementById('rf-num').value.trim().toLowerCase();
+  const dir  = document.getElementById('rf-dir').value;
+  const ext  = document.getElementById('rf-ext').value.trim();
+  const from = document.getElementById('rf-from').value;
+  const to   = document.getElementById('rf-to').value;
+  const filtered = allRec.filter(r => {
+    if (num  && !r.callerid?.toLowerCase().includes(num)) return false;
+    if (dir  && r.direction !== dir) return false;
+    if (ext  && r.exten !== ext) return false;
+    if (from && r.date < from) return false;
+    if (to   && r.date > to)   return false;
+    return true;
+  });
+  document.getElementById('r-count').textContent = filtered.length + ' записей';
+  const tbody = document.getElementById('rec-tbody');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Нет записей</td></tr>'; return; }
+  tbody.innerHTML = filtered.map(r => {
+    const dirLabel = r.direction === 'in' ? '<span class="badge in">↙ Вход</span>' : '<span class="badge out">↗ Исход</span>';
+    return `<tr>
+      <td>${r.date || '—'} ${r.time || ''}</td>
+      <td>${dirLabel}</td>
+      <td class="clickable" onclick="document.getElementById('rf-num').value='${r.callerid}';filterRec()">${r.callerid || '—'}</td>
+      <td>${r.exten || '—'}</td>
+      <td><audio controls preload="none" src="${REC}${r.filename}"></audio></td>
+    </tr>`;
+  }).join('');
+}
+
+function resetRecFilters() {
+  ['rf-num','rf-ext','rf-from','rf-to'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('rf-dir').value = '';
+  filterRec();
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+checkAuth();
+loadDesktop();
+loadHistory();
+setInterval(loadHistory, 60000);
+</script>
+</body>
+</html>
