@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>biokey.ATC — Панель управления</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="db.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a10; color: #e8e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* TOPBAR */
+.topbar { background: #13131e; border-bottom: 1px solid #2a2a3e; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 54px; flex-shrink: 0; }
+.topbar-logo { font-size: 18px; font-weight: 800; color: #fff; text-decoration: none; }
+.topbar-logo span { color: #7c5cfc; }
+.topbar-logo small { color: #a78bfa; font-size: 15px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-user { font-size: 13px; color: #5a5a7a; }
+.topbar-user b { color: #a0a0c0; }
+.btn-softphone { background: #7c5cfc22; border: 1px solid #7c5cfc55; color: #a78bfa; padding: 5px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; }
+.btn-logout { background: none; border: 1px solid #2a2a3e; color: #5a5a7a; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.btn-logout:hover { border-color: #ef444455; color: #ef4444; }
+.notif-bell { font-size: 18px; cursor: pointer; position: relative; }
+.notif-badge { position: absolute; top: -4px; right: -6px; background: #ef4444; color: #fff; font-size: 9px; font-weight: 700; border-radius: 10px; padding: 1px 4px; display: none; }
+
+/* TABS */
+.tabs { background: #0f0f18; border-bottom: 1px solid #2a2a3e; padding: 0 24px; display: flex; gap: 2px; flex-shrink: 0; overflow-x: auto; }
+.tab { padding: 13px 18px; font-size: 13px; font-weight: 600; color: #5a5a7a; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; }
+.tab:hover { color: #a0a0c0; }
+.tab.active { color: #a78bfa; border-bottom-color: #7c5cfc; }
+
+/* CONTENT */
+.content { flex: 1; padding: 20px 24px; overflow-y: auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* STAT CARDS */
+.stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.stat-card { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 14px 18px; min-width: 130px; flex: 1; }
+.stat-label { font-size: 10px; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+.stat-value { font-size: 26px; font-weight: 800; color: #a78bfa; }
+.stat-sub { font-size: 11px; color: #5a5a7a; margin-top: 3px; }
+
+/* OPERATORS GRID */
+.section-title { font-size: 15px; font-weight: 700; color: #a0a0c0; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.ops-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.op-card { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 14px 16px; transition: border-color 0.2s; }
+.op-card.online   { border-color: #22c55e55; }
+.op-card.break    { border-color: #f59e0b55; }
+.op-card.lunch    { border-color: #60a5fa55; }
+.op-card.official { border-color: #a78bfa55; }
+.op-card.offline  { opacity: 0.55; }
+.op-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.op-name { font-size: 14px; font-weight: 700; color: #e8e8f0; }
+.op-ext  { font-size: 11px; color: #5a5a7a; margin-top: 2px; }
+.op-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+.op-status.online   { background: #22c55e20; color: #22c55e; }
+.op-status.break    { background: #f59e0b20; color: #f59e0b; }
+.op-status.lunch    { background: #60a5fa20; color: #60a5fa; }
+.op-status.official { background: #a78bfa20; color: #a78bfa; }
+.op-status.offline  { background: #33333355; color: #666; }
+.op-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.op-timer { font-size: 11px; color: #5a5a7a; margin-top: 6px; }
+.op-timer.warn { color: #f59e0b; font-weight: 600; }
+.op-today { font-size: 11px; color: #5a5a7a; margin-top: 4px; }
+.op-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.op-btn { font-size: 10px; padding: 4px 8px; border-radius: 5px; border: 1px solid #2a2a3e; background: none; color: #6b6b88; cursor: pointer; transition: all 0.15s; }
+.op-btn:hover { border-color: #7c5cfc55; color: #a78bfa; }
+.op-btn.danger:hover { border-color: #ef444455; color: #ef4444; }
+
+/* KPI TABLE */
+.kpi-wrap { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 1px solid #2a2a3e; background: #0f0f18; white-space: nowrap; }
+td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid #1a1a24; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #1a1a24; }
+.kpi-bar { display: flex; align-items: center; gap: 8px; }
+.bar-bg { flex: 1; height: 5px; background: #2a2a3e; border-radius: 3px; overflow: hidden; max-width: 80px; }
+.bar-fill { height: 100%; border-radius: 3px; background: #7c5cfc; }
+
+/* ACTIVE CALLS */
+.active-call-card { background: #13131e; border: 1px solid #22c55e44; border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: center; gap: 16px; }
+.ac-info { flex: 1; }
+.ac-channel { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+.ac-num { font-size: 12px; color: #a78bfa; margin-top: 2px; }
+.ac-dur { font-size: 12px; color: #5a5a7a; }
+.ac-actions { display: flex; gap: 8px; }
+.ac-btn { font-size: 11px; padding: 6px 12px; border-radius: 6px; border: 1px solid; cursor: pointer; background: none; transition: all 0.15s; }
+.ac-btn.listen  { border-color: #60a5fa44; color: #60a5fa; }
+.ac-btn.listen:hover { background: #60a5fa22; }
+.ac-btn.whisper { border-color: #f59e0b44; color: #f59e0b; }
+.ac-btn.whisper:hover { background: #f59e0b22; }
+.ac-btn.take    { border-color: #22c55e44; color: #22c55e; }
+.ac-btn.take:hover { background: #22c55e22; }
+
+/* FILTERS */
+.filters { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 14px 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.fg { display: flex; flex-direction: column; gap: 4px; }
+.fg label { font-size: 10px; color: #5a5a7a; text-transform: uppercase; letter-spacing: 0.06em; }
+.fi, .fs { background: #0a0a10; border: 1px solid #2a2a3e; border-radius: 7px; color: #e8e8f0; padding: 7px 10px; font-size: 13px; outline: none; }
+.fi { width: 170px; }
+.fi:focus, .fs:focus { border-color: #7c5cfc; }
+.btn-r { background: none; border: 1px solid #2a2a3e; color: #5a5a7a; padding: 7px 14px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+.btn-r:hover { border-color: #7c5cfc55; color: #a78bfa; }
+
+/* TABLE WRAP */
+.table-wrap { background: #13131e; border: 1px solid #2a2a3e; border-radius: 12px; overflow: hidden; }
+.table-hdr { padding: 12px 18px; border-bottom: 1px solid #2a2a3e; font-size: 12px; color: #5a5a7a; display: flex; justify-content: space-between; align-items: center; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge.in   { background: #60a5fa20; color: #60a5fa; }
+.badge.out  { background: #22c55e20; color: #22c55e; }
+.badge.miss { background: #ef444420; color: #ef4444; }
+.clickable  { cursor: pointer; color: #a78bfa; text-decoration: underline dotted; }
+.empty { text-align: center; padding: 40px; color: #3a3a55; font-size: 13px; }
+
+/* NOTIFICATIONS PANEL */
+.notif-list { position: fixed; top: 60px; right: 20px; width: 320px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+.notif-item { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px; padding: 12px 14px; font-size: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.notif-title { font-weight: 700; color: #ef4444; margin-bottom: 4px; }
+.notif-body  { color: #a0a0c0; }
+
+audio { width: 100%; min-width: 320px; height: 30px; }
+#rec-tbody td:last-child { min-width: 340px; }
+.rec-error { background: #ef444411; border: 1px solid #ef444433; border-radius: 10px; padding: 12px 16px; color: #f87171; font-size: 13px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a class="topbar-logo" href="admin.html">biokey<span>.</span><small>ATC</small></a>
+  <div class="topbar-right">
+    <div class="topbar-user">Вы: <b id="topbar-name">—</b></div>
+    <div class="notif-bell" onclick="toggleNotifPanel()" title="Уведомления">🔔<span class="notif-badge" id="notif-badge">0</span></div>
+    <a href="softphone.html" class="btn-softphone">📞 Позвонить</a>
+    <button class="btn-logout" onclick="logout()">Выйти</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('desktop')">🖥 Рабочий стол</div>
+  <div class="tab" onclick="showTab('kpi')">📊 КПИ операторов</div>
+  <div class="tab" onclick="showTab('active')">📡 Активные звонки</div>
+  <div class="tab" onclick="showTab('history')">📞 История звонков</div>
+  <div class="tab" onclick="showTab('recordings')">🎙 Записи</div>
+  <div class="tab" onclick="showTab('users')">👥 Управление УЗ</div>
+</div>
+
+<div class="content">
+
+<!-- ══ РАБОЧИЙ СТОЛ ══ -->
+<div class="tab-panel active" id="panel-desktop">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Всего операторов</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">В линии</div><div class="stat-value" style="color:#22c55e" id="s-online">—</div></div>
+    <div class="stat-card"><div class="stat-label">На паузе</div><div class="stat-value" style="color:#f59e0b" id="s-pause">—</div></div>
+    <div class="stat-card"><div class="stat-label">Офлайн</div><div class="stat-value" style="color:#5a5a7a" id="s-offline">—</div></div>
+    <div class="stat-card"><div class="stat-label">Пропущено сегодня</div><div class="stat-value" style="color:#ef4444" id="s-missed">—</div></div>
+  </div>
+  <div class="section-title">
+    <span>Операторы</span>
+    <span style="font-size:11px;color:#5a5a7a;font-weight:400">Обновляется автоматически</span>
+  </div>
+  <div class="ops-grid" id="ops-grid"><div class="empty">Загрузка...</div></div>
+</div>
+
+<!-- ══ КПИ ══ -->
+<div class="tab-panel" id="panel-kpi">
+  <div class="filters">
+    <div class="fg"><label>Дата от</label><input class="fi" id="kpi-from" type="date" onchange="renderKPI()" /></div>
+    <div class="fg"><label>Дата до</label><input class="fi" id="kpi-to" type="date" onchange="renderKPI()" /></div>
+    <button class="btn-r" onclick="setKPIToday()">Сегодня</button>
+    <button class="btn-r" onclick="setKPIWeek()">Неделя</button>
+    <button class="btn-r" onclick="setKPIMonth()">Месяц</button>
+    <button class="btn-r" onclick="document.getElementById('kpi-from').value='';document.getElementById('kpi-to').value='';renderKPI()">Всё время</button>
+  </div>
+  <div class="kpi-wrap">
+    <table>
+      <thead><tr>
+        <th>Оператор</th><th>Добавочный</th><th>Всего</th><th>↙ Вход</th><th>↗ Исход</th><th>✗ Пропуск</th><th>% принятых</th><th>Ср. время</th><th>Общ. время</th>
+      </tr></thead>
+      <tbody id="kpi-tbody"><tr><td colspan="9" class="empty">Загрузка...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ АКТИВНЫЕ ЗВОНКИ ══ -->
+<div class="tab-panel" id="panel-active">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Активных звонков</div><div class="stat-value" style="color:#22c55e" id="ac-count">0</div></div>
+    <div class="stat-card"><div class="stat-label">Всего каналов</div><div class="stat-value" id="ac-channels">0</div></div>
+  </div>
+  <div id="ari-error" style="display:none" class="rec-error">
+    ⚠️ ARI недоступен. Для активации: добавь в nginx проксирование <code>/ari/</code> и <a href="https://185.102.75.229:8089" target="_blank" style="color:#f87171">прими сертификат</a>.
+  </div>
+  <div class="section-title">
+    <span>Активные каналы</span>
+    <button class="btn-r" onclick="loadActiveCalls()" style="font-size:11px;padding:4px 10px">🔄 Обновить</button>
+  </div>
+  <div id="active-calls-list"><div class="empty">Загрузка...</div></div>
+  <div style="margin-top:20px;background:#13131e;border:1px solid #2a2a3e;border-radius:12px;padding:16px 18px;">
+    <div style="font-size:13px;font-weight:700;color:#a0a0c0;margin-bottom:12px;">🎧 Прослушка / Подсказка / Перехват</div>
+    <div style="font-size:12px;color:#5a5a7a;line-height:1.7;">
+      Для прослушки звонка оператора наберите с softphone добавочный:<br>
+      <span style="color:#a78bfa;font-family:monospace;font-size:14px;">555[ДОБАВОЧНЫЙ]</span> — только слушать<br>
+      <span style="color:#f59e0b;font-family:monospace;font-size:14px;">556[ДОБАВОЧНЫЙ]</span> — подсказывать (оператор слышит, клиент нет)<br>
+      <span style="color:#22c55e;font-family:monospace;font-size:14px;">557[ДОБАВОЧНЫЙ]</span> — перехватить звонок<br>
+      <br>
+      <span style="color:#3a3a55;font-size:11px;">Пример: 5551001 — слушать оператора на добавочном 1001</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ИСТОРИЯ ══ -->
+<div class="tab-panel" id="panel-history">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Всего</div><div class="stat-value" id="h-total">0</div></div>
+    <div class="stat-card"><div class="stat-label">Входящие</div><div class="stat-value" style="color:#60a5fa" id="h-in">0</div></div>
+    <div class="stat-card"><div class="stat-label">Исходящие</div><div class="stat-value" style="color:#22c55e" id="h-out">0</div></div>
+    <div class="stat-card"><div class="stat-label">Пропущенные</div><div class="stat-value" style="color:#ef4444" id="h-miss">0</div></div>
+    <div class="stat-card"><div class="stat-label">Сегодня</div><div class="stat-value" style="color:#a78bfa" id="h-today">0</div></div>
+  </div>
+  <div class="filters">
+    <div class="fg"><label>Номер</label><input class="fi" id="f-num" placeholder="+7..." oninput="filterHistory()" /></div>
+    <div class="fg"><label>Тип</label><select class="fs" id="f-type" onchange="filterHistory()"><option value="">Все</option><option value="in">Входящий</option><option value="out">Исходящий</option><option value="miss">Пропущенный</option></select></div>
+    <div class="fg"><label>Оператор</label><input class="fi" id="f-op" placeholder="Имя" oninput="filterHistory()" /></div>
+    <div class="fg"><label>Дата от</label><input class="fi" id="f-from" type="date" onchange="filterHistory()" /></div>
+    <div class="fg"><label>Дата до</label><input class="fi" id="f-to" type="date" onchange="filterHistory()" /></div>
+    <button class="btn-r" onclick="resetHFilters()">Сбросить</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-hdr"><span>История всех операторов</span><span style="color:#a78bfa" id="h-count">0 записей</span></div>
+    <table><thead><tr><th>Дата/Время</th><th>Тип</th><th>Номер</th><th>Оператор</th><th>Длительность</th></tr></thead>
+    <tbody id="history-tbody"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- ══ ЗАПИСИ ══ -->
+<div class="tab-panel" id="panel-recordings">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Всего записей</div><div class="stat-value" id="r-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Входящие</div><div class="stat-value" style="color:#60a5fa" id="r-in">—</div></div>
+    <div class="stat-card"><div class="stat-label">Исходящие</div><div class="stat-value" style="color:#22c55e" id="r-out">—</div></div>
+    <div class="stat-card"><div class="stat-label">Сегодня</div><div class="stat-value" style="color:#a78bfa" id="r-today">—</div></div>
+  </div>
+  <div class="filters">
+    <div class="fg"><label>Номер</label><input class="fi" id="rf-num" placeholder="+7..." oninput="filterRec()" /></div>
+    <div class="fg"><label>Направление</label><select class="fs" id="rf-dir" onchange="filterRec()"><option value="">Все</option><option value="in">Входящий</option><option value="out">Исходящий</option></select></div>
+    <div class="fg"><label>Добавочный</label><input class="fi" id="rf-ext" placeholder="1001" oninput="filterRec()" style="width:110px" /></div>
+    <div class="fg"><label>Дата от</label><input class="fi" id="rf-from" type="date" onchange="filterRec()" /></div>
+    <div class="fg"><label>Дата до</label><input class="fi" id="rf-to" type="date" onchange="filterRec()" /></div>
+    <button class="btn-r" onclick="resetRFilters()">Сбросить</button>
+  </div>
+  <div id="rec-error" class="rec-error" style="display:none">⚠️ Сервер записей недоступен.</div>
+  <div class="table-wrap">
+    <div class="table-hdr"><span>Записи разговоров</span><span style="color:#a78bfa" id="r-count">0 записей</span></div>
+    <table><thead><tr><th>Дата/Время</th><th>Тип</th><th>Номер</th><th>Оператор</th><th>Длит.</th><th>Запись</th></tr></thead>
+    <tbody id="rec-tbody"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- ══ УПРАВЛЕНИЕ УЗ ══ -->
+<div class="tab-panel" id="panel-users">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:#a0a0c0;">Учётные записи операторов</div>
+    <button onclick="openUserModal(null)" style="background:linear-gradient(135deg,#7c5cfc,#9d7dfe);border:none;border-radius:8px;color:#fff;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">+ Добавить</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-hdr"><span>Все учётные записи</span><span style="color:#a78bfa" id="u-count">0</span></div>
+    <table>
+      <thead><tr>
+        <th>Имя</th><th>Добавочный</th><th>Роль</th><th>Статус</th><th>Пароль</th><th>Действия</th>
+      </tr></thead>
+      <tbody id="users-tbody"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- MODAL -->
+<div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;">
+  <div style="background:#13131e;border:1px solid #2a2a3e;border-radius:16px;padding:28px 32px;width:400px;max-width:90vw;">
+    <div style="font-size:16px;font-weight:700;color:#e8e8f0;margin-bottom:20px;" id="modal-title">Новая учётная запись</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="fg"><label style="font-size:11px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Имя оператора</label>
+        <input class="fi" id="u-name" placeholder="Иванов Иван" style="width:100%" /></div>
+      <div class="fg"><label style="font-size:11px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Добавочный (ext)</label>
+        <input class="fi" id="u-ext" placeholder="1001" style="width:100%" /></div>
+      <div class="fg"><label style="font-size:11px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Пароль для входа</label>
+        <input class="fi" id="u-pass" type="password" placeholder="••••••••" style="width:100%" /></div>
+      <div class="fg"><label style="font-size:11px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Роль</label>
+        <select class="fs" id="u-role" style="width:100%">
+          <option value="operator">👤 Оператор</option>
+          <option value="rop">📊 РОП</option>
+          <option value="admin">⚙️ Администратор</option>
+        </select>
+      </div>
+      <div class="fg"><label style="font-size:11px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Статус</label>
+        <select class="fs" id="u-status" style="width:100%">
+          <option value="active">✅ Активен</option>
+          <option value="inactive">🔴 Отключён</option>
+        </select>
+      </div>
+    </div>
+    <div id="modal-error" style="display:none;color:#f87171;font-size:12px;margin-top:12px;"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button onclick="closeUserModal()" style="background:none;border:1px solid #2a2a3e;color:#6b6b88;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:13px;">Отмена</button>
+      <button onclick="saveUser()" id="modal-save-btn" style="background:linear-gradient(135deg,#7c5cfc,#9d7dfe);border:none;border-radius:8px;color:#fff;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif-list" id="notif-list"></div>
+
+<script>
+// ── AUTH ──────────────────────────────────────────
+const sess = sessionStorage.getItem('atc_session');
+let me = null;
+if (!sess) { window.location.href = 'login.html'; }
+else {
+  try {
+    me = JSON.parse(sess);
+    if (me.role !== 'admin' && me.role !== 'rop') window.location.href = 'softphone.html';
+    document.getElementById('topbar-name').textContent = me.name || me.login || '—';
+  } catch(e) { window.location.href = 'login.html'; }
+}
+function logout() { sessionStorage.removeItem('atc_session'); window.location.href = 'login.html'; }
+
+// ── TABS ──────────────────────────────────────────
+const TABS = ['desktop','kpi','active','history','recordings'];
+let activeTab = 'desktop';
+function showTab(id) {
+  activeTab = id;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', TABS[i] === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (id === 'recordings' && !recLoaded) loadRecordings();
+  if (id === 'active') loadActiveCalls();
+  if (id === 'kpi') renderKPI();
+}
+
+// ── HELPERS ──────────────────────────────────────
+function durStr(sec) {
+  if (!sec) return '—';
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h) return `${h}ч ${m}м`;
+  return m ? `${m}м ${s}с` : `${s}с`;
+}
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function fmtDT(t) {
+  if (!t) return '—';
+  const d = new Date(t);
+  return d.toLocaleDateString('ru') + ' ' + d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── NOTIFICATIONS ────────────────────────────────
+let notifShown = false;
+let lastMissedIds = new Set();
+let notifPanelOpen = false;
+
+function toggleNotifPanel() {
+  notifPanelOpen = !notifPanelOpen;
+  document.getElementById('notif-list').style.display = notifPanelOpen ? 'flex' : 'none';
+  if (notifPanelOpen) { document.getElementById('notif-badge').style.display = 'none'; }
+}
+
+function showNotif(title, body) {
+  const list = document.getElementById('notif-list');
+  const el = document.createElement('div');
+  el.className = 'notif-item';
+  el.innerHTML = `<div class="notif-title">${title}</div><div class="notif-body">${body}</div>`;
+  list.prepend(el);
+  setTimeout(() => el.remove(), 8000);
+  const badge = document.getElementById('notif-badge');
+  badge.style.display = 'block';
+  badge.textContent = parseInt(badge.textContent||0) + 1;
+  if (Notification.permission === 'granted') new Notification(title, { body, icon: '' });
+}
+
+if (Notification.permission === 'default') Notification.requestPermission();
+
+async function checkMissed() {
+  try {
+    const today = todayStr();
+    const rows = await window.db.loadCDR({ dateFrom: today, dateTo: today });
+    const missed = rows.filter(r => r.type === 'miss');
+    missed.forEach(r => {
+      if (!lastMissedIds.has(r.id)) {
+        lastMissedIds.add(r.id);
+        if (notifShown) showNotif('📵 Пропущенный звонок', `${r.num || 'Неизвестный'} — ${fmtDT(r.time)}`);
+      }
+    });
+    notifShown = true;
+  } catch(e) {}
+}
+
+// ── РАБОЧИЙ СТОЛ ────────────────────────────────
+let operators = [];
+let statusSince = {}; // id → {status, since}
+let todayCDR = [];
+
+async function loadDesktop() {
+  try {
+    operators = await window.db.loadOperators();
+    operators.forEach(op => {
+      if (!statusSince[op.id]) statusSince[op.id] = { status: op.presence || 'offline', since: Date.now() };
+    });
+    const today = todayStr();
+    todayCDR = await window.db.loadCDR({ dateFrom: today, dateTo: today });
+    renderDesktop();
+    window.db.subscribePresence(op => {
+      const i = operators.findIndex(o => o.id === op.id);
+      if (i >= 0) {
+        const prev = statusSince[op.id];
+        if (!prev || prev.status !== (op.presence || 'offline')) {
+          statusSince[op.id] = { status: op.presence || 'offline', since: Date.now() };
+        }
+        operators[i] = { ...operators[i], ...op };
+        renderDesktop();
+      }
+    });
+  } catch(e) { document.getElementById('ops-grid').innerHTML = '<div class="empty">Ошибка загрузки</div>'; }
+}
+
+const PRES_LABEL = { online:'В линии', break:'Перерыв', lunch:'Обед', official:'Служебный', offline:'Офлайн' };
+const PAUSE_STATUSES = ['break','lunch','official'];
+
+function renderDesktop() {
+  const active = operators.filter(o => o.status === 'active');
+  const online  = active.filter(o => o.presence === 'online').length;
+  const pause   = active.filter(o => PAUSE_STATUSES.includes(o.presence)).length;
+  const offline = active.filter(o => !o.presence || o.presence === 'offline').length;
+  const missed  = todayCDR.filter(c => c.type === 'miss').length;
+  document.getElementById('s-total').textContent  = active.length;
+  document.getElementById('s-online').textContent = online;
+  document.getElementById('s-pause').textContent  = pause;
+  document.getElementById('s-offline').textContent= offline;
+  document.getElementById('s-missed').textContent = missed;
+
+  const grid = document.getElementById('ops-grid');
+  if (!active.length) { grid.innerHTML = '<div class="empty">Операторов нет</div>'; return; }
+
+  const now = Date.now();
+  grid.innerHTML = active.map(op => {
+    const p = op.presence || 'offline';
+    const since = statusSince[op.id];
+    const elapsed = since ? Math.floor((now - since.since) / 60000) : 0;
+    const timerWarn = PAUSE_STATUSES.includes(p) && elapsed > 20;
+    const timerText = elapsed > 0 ? `${elapsed} мин в статусе` : '';
+    const opCalls = todayCDR.filter(c => c.op === op.name).length;
+    const opMissed = todayCDR.filter(c => c.op === op.name && c.type === 'miss').length;
+
+    return `<div class="op-card ${p}">
+      <div class="op-card-top">
+        <div>
+          <div class="op-name">${op.name}</div>
+          <div class="op-ext">Доб. ${op.ext || '—'}</div>
+        </div>
+        <span class="op-status ${p}"><span class="op-dot"></span>${PRES_LABEL[p]||p}</span>
+      </div>
+      ${timerText ? `<div class="op-timer${timerWarn?' warn':''}">⏱ ${timerText}${timerWarn?' ⚠️':''}</div>` : ''}
+      <div class="op-today">Сегодня: ${opCalls} зв. / ${opMissed} пропущ.</div>
+      <div class="op-actions">
+        <button class="op-btn" onclick="forceStatus('${op.id}','online')">✅ В линию</button>
+        <button class="op-btn" onclick="forceStatus('${op.id}','break')">☕ Пауза</button>
+        <button class="op-btn danger" onclick="forceStatus('${op.id}','offline')">🔴 Офлайн</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function forceStatus(id, status) {
+  try {
+    await window.db.setPresence(id, status);
+    const i = operators.findIndex(o => o.id === id);
+    if (i >= 0) { operators[i].presence = status; statusSince[id] = { status, since: Date.now() }; renderDesktop(); }
+  } catch(e) { alert('Ошибка изменения статуса'); }
+}
+
+// Обновляем таймеры каждую минуту
+setInterval(() => { if (activeTab === 'desktop') renderDesktop(); }, 60000);
+
+// ── КПИ ОПЕРАТОРОВ ───────────────────────────────
+let allCDR = [];
+
+async function loadAllCDR() {
+  try { allCDR = await window.db.loadCDR({ limit: 5000 }); renderKPI(); } catch(e) {}
+}
+
+function setKPIToday()  { const t=todayStr(); document.getElementById('kpi-from').value=t; document.getElementById('kpi-to').value=t; renderKPI(); }
+function setKPIWeek()   { const t=new Date(); const f=new Date(t-6*864e5); document.getElementById('kpi-from').value=f.toISOString().slice(0,10); document.getElementById('kpi-to').value=t.toISOString().slice(0,10); renderKPI(); }
+function setKPIMonth()  { const t=new Date(); const f=new Date(t.getFullYear(),t.getMonth(),1); document.getElementById('kpi-from').value=f.toISOString().slice(0,10); document.getElementById('kpi-to').value=t.toISOString().slice(0,10); renderKPI(); }
+
+function renderKPI() {
+  const from = document.getElementById('kpi-from')?.value;
+  const to   = document.getElementById('kpi-to')?.value;
+  let data = allCDR;
+  if (from) data = data.filter(c => c.time >= from);
+  if (to)   data = data.filter(c => c.time.slice(0,10) <= to);
+
+  // Group by operator
+  const ops = {};
+  operators.filter(o => o.status === 'active').forEach(o => { ops[o.name] = { name: o.name, ext: o.ext, in:0, out:0, miss:0, dur:0 }; });
+  data.forEach(c => {
+    if (!ops[c.op]) ops[c.op] = { name: c.op, ext:'—', in:0, out:0, miss:0, dur:0 };
+    ops[c.op][c.type]++;
+    ops[c.op].dur += c.dur || 0;
+  });
+
+  const rows = Object.values(ops).sort((a,b) => (b.in+b.out+b.miss) - (a.in+a.out+a.miss));
+  const maxTotal = Math.max(...rows.map(r => r.in+r.out+r.miss), 1);
+  const tbody = document.getElementById('kpi-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Нет данных</td></tr>'; return; }
+
+  tbody.innerHTML = rows.map(r => {
+    const total = r.in + r.out + r.miss;
+    const answered = r.in + r.out;
+    const pct = total > 0 ? Math.round(answered / total * 100) : 0;
+    const avg = answered > 0 ? Math.round(r.dur / answered) : 0;
+    const barW = Math.round(total / maxTotal * 100);
+    return `<tr>
+      <td><b>${r.name || '—'}</b></td>
+      <td style="color:#5a5a7a">${r.ext||'—'}</td>
+      <td><div class="kpi-bar">${total}<div class="bar-bg"><div class="bar-fill" style="width:${barW}%"></div></div></div></td>
+      <td style="color:#60a5fa">${r.in}</td>
+      <td style="color:#22c55e">${r.out}</td>
+      <td style="color:#ef4444">${r.miss}</td>
+      <td style="color:${pct>=80?'#22c55e':pct>=50?'#f59e0b':'#ef4444'};font-weight:700">${pct}%</td>
+      <td style="color:#a78bfa">${durStr(avg)}</td>
+      <td>${durStr(r.dur)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── АКТИВНЫЕ ЗВОНКИ (ARI) ───────────────────────
+const ARI_BASE = 'https://185.102.75.229:8089/ari';
+const ARI_USER = 'biokey_ari';
+const ARI_PASS = 'BkAri@2026!';
+
+async function loadActiveCalls() {
+  try {
+    const r = await fetch(`${ARI_BASE}/channels`, {
+      headers: { 'Authorization': 'Basic ' + btoa(ARI_USER+':'+ARI_PASS) }
+    });
+    if (!r.ok) throw new Error(r.status);
+    document.getElementById('ari-error').style.display = 'none';
+    const channels = await r.json();
+    const active = channels.filter(c => c.state === 'Up');
+    document.getElementById('ac-count').textContent = active.length;
+    document.getElementById('ac-channels').textContent = channels.length;
+    const list = document.getElementById('active-calls-list');
+    if (!active.length) { list.innerHTML = '<div class="empty">Нет активных звонков</div>'; return; }
+    list.innerHTML = active.map(ch => {
+      const caller = ch.caller?.number || '—';
+      const ext = ch.name?.split('/')[1]?.split('-')[0] || '—';
+      const sec = ch.duration || 0;
+      return `<div class="active-call-card">
+        <div class="ac-info">
+          <div class="ac-channel">📞 Оператор: ${ext}</div>
+          <div class="ac-num">${caller}</div>
+          <div class="ac-dur">⏱ ${durStr(sec)}</div>
+        </div>
+        <div class="ac-actions">
+          <button class="ac-btn listen" onclick="callSpy('${ext}','555')">👂 Слушать</button>
+          <button class="ac-btn whisper" onclick="callSpy('${ext}','556')">💬 Подсказка</button>
+          <button class="ac-btn take" onclick="callSpy('${ext}','557')">📲 Перехват</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('ari-error').style.display = 'block';
+    document.getElementById('active-calls-list').innerHTML = '<div class="empty">ARI недоступен</div>';
+    document.getElementById('ac-count').textContent = '—';
+    document.getElementById('ac-channels').textContent = '—';
+  }
+}
+
+function callSpy(ext, prefix) {
+  const num = prefix + ext;
+  sessionStorage.setItem('atc_dial', num);
+  window.open('softphone.html?dial=' + num, '_blank');
+}
+
+setInterval(() => { if (activeTab === 'active') loadActiveCalls(); }, 5000);
+
+// ── ИСТОРИЯ ─────────────────────────────────────
+let filteredCDR = [];
+
+function updateHStats() {
+  const today = todayStr();
+  document.getElementById('h-total').textContent = allCDR.length;
+  document.getElementById('h-in').textContent    = allCDR.filter(c=>c.type==='in').length;
+  document.getElementById('h-out').textContent   = allCDR.filter(c=>c.type==='out').length;
+  document.getElementById('h-miss').textContent  = allCDR.filter(c=>c.type==='miss').length;
+  document.getElementById('h-today').textContent = allCDR.filter(c=>c.time?.startsWith(today)).length;
+}
+
+function filterHistory() {
+  const num  = document.getElementById('f-num').value.trim().toLowerCase();
+  const type = document.getElementById('f-type').value;
+  const op   = document.getElementById('f-op').value.trim().toLowerCase();
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+  filteredCDR = allCDR.filter(c => {
+    if (num  && !c.num?.toLowerCase().includes(num)) return false;
+    if (type && c.type !== type) return false;
+    if (op   && !c.op?.toLowerCase().includes(op)) return false;
+    if (from && c.time < from) return false;
+    if (to   && c.time.slice(0,10) > to) return false;
+    return true;
+  });
+  renderHistory();
+}
+
+function resetHFilters() {
+  ['f-num','f-op','f-from','f-to'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('f-type').value='';
+  filterHistory();
+}
+
+function renderHistory() {
+  document.getElementById('h-count').textContent = filteredCDR.length + ' записей';
+  const tbody = document.getElementById('history-tbody');
+  if (!filteredCDR.length) { tbody.innerHTML='<tr><td colspan="5" class="empty">Нет данных</td></tr>'; return; }
+  const TM = {in:['in','↙ Входящий'], out:['out','↗ Исходящий'], miss:['miss','✗ Пропущен']};
+  tbody.innerHTML = filteredCDR.slice(0,500).map(c => {
+    const [cls,lbl] = TM[c.type]||['miss',c.type];
+    return `<tr>
+      <td>${fmtDT(c.time)}</td>
+      <td><span class="badge ${cls}">${lbl}</span></td>
+      <td class="clickable" onclick="document.getElementById('f-num').value='${c.num}';filterHistory()">${c.num||'—'}</td>
+      <td>${c.op||'—'}</td>
+      <td>${durStr(c.dur)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ЗАПИСИ ──────────────────────────────────────
+const API = '/api/';
+const REC = 'https://185.102.75.229:8090/recordings/';
+let allRec = [], recLoaded = false, opMap = {};
+
+async function loadOpMap() {
+  try {
+    const ops = await window.db.loadOperators();
+    ops.forEach(o => { opMap[o.ext] = o.name; });
+  } catch(e) {}
+}
+
+async function loadRecordings() {
+  recLoaded = true;
+  await loadOpMap();
+  try {
+    const r = await fetch(API + 'recordings');
+    if (!r.ok) throw new Error(r.status);
+    allRec = await r.json();
+    const today = todayStr();
+    document.getElementById('r-total').textContent = allRec.length;
+    document.getElementById('r-in').textContent    = allRec.filter(r=>r.direction==='in').length;
+    document.getElementById('r-out').textContent   = allRec.filter(r=>r.direction==='out').length;
+    document.getElementById('r-today').textContent = allRec.filter(r=>r.date===today).length;
+    filterRec();
+    document.getElementById('rec-error').style.display='none';
+  } catch(e) {
+    document.getElementById('rec-error').style.display='block';
+    document.getElementById('rec-tbody').innerHTML='<tr><td colspan="6" class="empty">Недоступно</td></tr>';
+  }
+}
+
+function filterRec() {
+  const num  = document.getElementById('rf-num').value.trim().toLowerCase();
+  const dir  = document.getElementById('rf-dir').value;
+  const ext  = document.getElementById('rf-ext').value.trim();
+  const from = document.getElementById('rf-from').value;
+  const to   = document.getElementById('rf-to').value;
+  const f = allRec.filter(r => {
+    if (num  && !r.callee?.toLowerCase().includes(num)) return false;
+    if (dir  && r.direction !== dir) return false;
+    if (ext  && r.caller !== ext) return false;
+    if (from && r.date?.slice(0,10) < from) return false;
+    if (to   && r.date?.slice(0,10) > to) return false;
+    return true;
+  });
+  document.getElementById('r-count').textContent = f.length + ' записей';
+  const tbody = document.getElementById('rec-tbody');
+  if (!f.length) { tbody.innerHTML='<tr><td colspan="6" class="empty">Нет записей</td></tr>'; return; }
+  tbody.innerHTML = f.map(r => {
+    const d = r.direction==='in'?'<span class="badge in">↙ Вход</span>':'<span class="badge out">↗ Исход</span>';
+    const dt = r.date ? r.date.slice(0,16).replace('T',' ') : '—';
+    const opName = opMap[r.caller] || r.caller || '—';
+    const dur = r.duration > 0 ? r.duration + ' с' : '<span style="color:#6b6b88">0</span>';
+    return `<tr>
+      <td>${dt}</td><td>${d}</td>
+      <td class="clickable" onclick="document.getElementById('rf-num').value='${r.callee}';filterRec()">${r.callee||'—'}</td>
+      <td>${opName}</td>
+      <td>${dur}</td>
+      <td><audio controls preload="none" src="${r.url}"></audio></td>
+    </tr>`;
+  }).join('');
+}
+
+function resetRFilters() {
+  ['rf-num','rf-ext','rf-from','rf-to'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('rf-dir').value='';
+  filterRec();
+}
+
+// ── УПРАВЛЕНИЕ УЗ ───────────────────────────────
+const TABS6 = ['desktop','kpi','active','history','recordings','users'];
+// patch showTab to support 6 tabs
+const _origShowTab = showTab;
+showTab = function(id) {
+  activeTab = id;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', TABS6[i] === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (id === 'recordings' && !recLoaded) loadRecordings();
+  if (id === 'active') loadActiveCalls();
+  if (id === 'kpi') renderKPI();
+  if (id === 'users') loadUsers();
+};
+
+let editingUserId = null;
+
+async function loadUsers() {
+  const all = await window.db.loadOperators();
+  document.getElementById('u-count').textContent = all.length + ' записей';
+  const ROLE = { operator:'👤 Оператор', rop:'📊 РОП', admin:'⚙️ Администратор' };
+  const tbody = document.getElementById('users-tbody');
+  if (!all.length) { tbody.innerHTML='<tr><td colspan="6" class="empty">Нет учётных записей</td></tr>'; return; }
+  tbody.innerHTML = all.map(u => `<tr>
+    <td><b>${u.name}</b></td>
+    <td style="color:#a78bfa;font-family:monospace">${u.ext||'—'}</td>
+    <td>${ROLE[u.role]||u.role}</td>
+    <td>${u.status==='active'?'<span style="color:#22c55e">✅ Активен</span>':'<span style="color:#ef4444">🔴 Отключён</span>'}</td>
+    <td style="color:#5a5a7a">${u.pass?'••••••':'—'}</td>
+    <td>
+      <button class="op-btn" onclick="openUserModal(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ Изменить</button>
+      <button class="op-btn danger" onclick="deleteUser('${u.id}','${u.name}')">🗑 Удалить</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openUserModal(user) {
+  editingUserId = user?.id || null;
+  document.getElementById('modal-title').textContent = user ? 'Редактировать УЗ' : 'Новая учётная запись';
+  document.getElementById('u-name').value   = user?.name   || '';
+  document.getElementById('u-ext').value    = user?.ext    || '';
+  document.getElementById('u-pass').value   = '';
+  document.getElementById('u-pass').placeholder = user ? 'Оставьте пустым — не менять' : '••••••••';
+  document.getElementById('u-role').value   = user?.role   || 'operator';
+  document.getElementById('u-status').value = user?.status || 'active';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('user-modal').style.display  = 'flex';
+}
+
+function closeUserModal() {
+  document.getElementById('user-modal').style.display = 'none';
+  editingUserId = null;
+}
+
+async function saveUser() {
+  const name   = document.getElementById('u-name').value.trim();
+  const ext    = document.getElementById('u-ext').value.trim();
+  const pass   = document.getElementById('u-pass').value;
+  const role   = document.getElementById('u-role').value;
+  const status = document.getElementById('u-status').value;
+  const errEl  = document.getElementById('modal-error');
+
+  if (!name) { errEl.textContent='Введите имя оператора'; errEl.style.display='block'; return; }
+  if (!editingUserId && !pass) { errEl.textContent='Введите пароль'; errEl.style.display='block'; return; }
+
+  const btn = document.getElementById('modal-save-btn');
+  btn.textContent = 'Сохранение...'; btn.disabled = true;
+  try {
+    const payload = { name, ext, role, status };
+    if (editingUserId) { payload.id = editingUserId; if (pass) payload.pass = pass; }
+    else { payload.pass = pass; }
+    await window.db.saveOperator(payload);
+    closeUserModal();
+    operators = await window.db.loadOperators();
+    await loadUsers();
+    renderDesktop();
+  } catch(e) {
+    errEl.textContent = 'Ошибка сохранения: ' + (e.message||e);
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Сохранить'; btn.disabled = false;
+  }
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Удалить учётную запись "${name}"?`)) return;
+  try {
+    await window.db.deleteOperator(id);
+    operators = operators.filter(o => o.id !== id);
+    await loadUsers();
+    renderDesktop();
+  } catch(e) { alert('Ошибка удаления'); }
+}
+
+// Close modal on backdrop click
+document.getElementById('user-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeUserModal(); });
+
+// ── INIT ────────────────────────────────────────
+loadDesktop();
+loadAllCDR().then(() => { updateHStats(); filterHistory(); });
+setKPIToday();
+checkMissed();
+setInterval(checkMissed, 30000);
+setInterval(async () => {
+  try {
+    todayCDR = await window.db.loadCDR({ dateFrom: todayStr(), dateTo: todayStr() });
+    if (activeTab === 'desktop') renderDesktop();
+    allCDR = await window.db.loadCDR({ limit: 5000 });
+    updateHStats();
+    if (activeTab === 'history') filterHistory();
+    if (activeTab === 'kpi') renderKPI();
+  } catch(e) {}
+}, 60000);
+</script>
+</body>
+</html>
